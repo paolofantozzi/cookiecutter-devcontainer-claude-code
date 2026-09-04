@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-09-04
+
+### Security
+
+- `devcontainer.json`'s `name` is now JSON-escaped (`| tojson`) so a crafted project name
+  can no longer break out of the string literal and inject arbitrary devcontainer keys
+  (e.g. `runArgs`/`mounts`/`privileged`), which would have run on the host at container
+  build/rebuild time.
+
 ## [0.1.0] - 2026-09-04
 
 ### Added

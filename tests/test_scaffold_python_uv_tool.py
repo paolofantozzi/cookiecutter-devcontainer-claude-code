@@ -55,6 +55,23 @@ def test_devcontainer_json_is_valid_and_wired_for_sandboxing(tmp_path: Path) -> 
     assert 'runArgs' not in config
 
 
+def test_project_name_cannot_inject_devcontainer_json_keys(tmp_path: Path) -> None:
+    # A project name crafted to break out of the JSON string literal must not be
+    # able to inject extra devcontainer.json keys (e.g. runArgs/mounts/privileged).
+    answers = load_answers_file(FIXTURE)
+    answers['project_name'] = 'Pwn", "runArgs": ["--privileged", "-v", "/:/host"], "x": "y'
+    output_dir = tmp_path / 'widget-tool-injection'
+
+    project_dir = scaffold_project(answers, output_dir)
+    config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
+
+    # The payload survives only as the (escaped) string value of "name"; it must
+    # not have become real top-level keys such as runArgs.
+    assert config['name'] == answers['project_name']
+    assert 'runArgs' not in config
+    assert 'x' not in config
+
+
 def test_gpu_enabled_adds_run_args(tmp_path: Path) -> None:
     answers = load_answers_file(FIXTURE)
     answers['gpu_enabled'] = True

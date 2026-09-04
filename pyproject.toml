@@ -1,6 +1,6 @@
 [project]
 name = "cdforge"
-version = "0.1.0"
+version = "0.1.1"
 description = "Cookiecutter-style scaffolder for VS Code devcontainers with a sandboxed Claude Code inside"
 readme = "README.md"
 requires-python = ">=3.12"
