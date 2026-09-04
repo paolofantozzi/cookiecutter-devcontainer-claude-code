@@ -1,0 +1,32 @@
+{% if docker_mode == 'sysbox' %}
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Sysbox mode: a full Docker daemon runs INSIDE this devcontainer, isolated by the sysbox
+# runtime (user-namespaced). The container is NOT privileged and has no access to the host
+# kernel, devices, Docker daemon, or filesystem — Claude Code can build and run its own
+# containers here without any of that reaching the host.
+#
+# This script is idempotent and runs on every container start (postStartCommand). It also
+# runs once from post-create.sh so Docker is ready right after the first build.
+
+if ! command -v docker >/dev/null 2>&1; then
+  # Install Docker just as you would on a normal host/VM (sysbox makes this work unprivileged).
+  curl -fsSL https://get.docker.com | sudo sh
+fi
+
+sudo groupadd -f docker
+sudo usermod -aG docker "$(id -un)" || true
+
+# The base image has no systemd, so start dockerd directly if it is not already running.
+if ! pgrep -x dockerd >/dev/null 2>&1; then
+  sudo sh -c 'nohup dockerd >/var/log/dockerd.log 2>&1 &'
+fi
+
+# Wait for the daemon socket, then make it usable by the non-root user for this session.
+for _ in $(seq 1 20); do
+  [ -S /var/run/docker.sock ] && break
+  sleep 1
+done
+sudo chmod 666 /var/run/docker.sock 2>/dev/null || true
+{% endif %}

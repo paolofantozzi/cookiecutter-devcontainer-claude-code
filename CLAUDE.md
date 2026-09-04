@@ -68,12 +68,19 @@ for the full reasoning if changing them:
   `settings.json` (i.e. **user-scope** settings) by `post-create.sh`, once, only if the
   file doesn't already exist. It cannot be set from the project's own `.claude/settings.json`
   — Claude Code ignores `auto`/`bypassPermissions` there by design.
-- **The devcontainer is unprivileged by default.** The `docker-in-docker` feature is NOT
-  included unless the user opts in via `enable_docker`, because that feature forces the
-  container to run `--privileged` (it declares `"privileged": true`), which gives in-container
-  code CAP_SYS_ADMIN and direct access to the host's block devices and kernel — a full escape
-  of the "no host access" guarantee. When `enable_docker` is on, the generated README/CLAUDE
-  must keep warning about this.
+- **The devcontainer is unprivileged by default.** In-container Docker is chosen by the
+  `docker_mode` context value (`none` | `sysbox` | `privileged`, derived in
+  `context_builder.py`; the older boolean `enable_docker` still maps to `privileged`):
+  - `none` (default): no in-container Docker; ordinary unprivileged container.
+  - `sysbox`: adds `--runtime=sysbox-runc` (build layout) or `runtime: sysbox-runc` on the
+    compose `app` service, and starts a Docker daemon via `.devcontainer/docker-start.sh`.
+    The container stays unprivileged with no host access — this is the preferred way to give
+    Claude Code its own Docker. It requires Sysbox on the host (untestable in CI; validate
+    with a real rebuild on a sysbox host).
+  - `privileged`: the `docker-in-docker` feature, which declares `"privileged": true` and so
+    forces the container to run `--privileged` — giving in-container code CAP_SYS_ADMIN and
+    direct host block-device/kernel access, a full escape of the "no host access" guarantee.
+    The generated README/CLAUDE must keep warning about this.
 - **Backing services are sibling containers, not Docker-in-Docker.** `django_drf` projects
   that need Postgres/Redis use the Dev Containers Docker Compose workflow (`use_compose`): the
   devcontainer is the unprivileged `app` service and the databases are siblings on the compose

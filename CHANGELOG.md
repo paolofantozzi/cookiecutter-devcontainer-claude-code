@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.7] - 2026-09-05
+
+### Added
+
+- New **Sysbox** in-container Docker mode. The `docker_mode` answer now offers
+  `none` (default), `sysbox`, and `privileged`. In `sysbox` mode the devcontainer runs with
+  `--runtime=sysbox-runc` (or `runtime: sysbox-runc` on the compose `app` service) and starts
+  its own Docker daemon via `.devcontainer/docker-start.sh`, so Claude Code can build/run
+  containers and use Testcontainers while the container stays **unprivileged with no host
+  access**. Requires Sysbox installed on a Linux host. The wizard now asks for the mode and
+  the generated README/CLAUDE document the host prerequisite. The older boolean
+  `enable_docker` still maps to `privileged`.
+
+  Note: the Sysbox path is validated by rendering/config checks only; running it needs a
+  sysbox-enabled host, so verify with a real container rebuild there.
+
 ## [0.1.6] - 2026-09-05
 
 ### Fixed

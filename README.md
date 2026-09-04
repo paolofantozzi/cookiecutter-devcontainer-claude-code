@@ -18,9 +18,12 @@ installed on your host at all.
 - Projects that need backing services (django + Postgres/Redis) get them as **sibling
   containers** via the Dev Containers Docker Compose workflow, reachable by hostname over a
   private network — no in-container Docker daemon and no privilege required.
-- In-container Docker (`docker-in-docker`) is **opt-in and off by default**: enabling it
-  makes the container run `--privileged`, which grants host kernel/device access and voids
-  the isolation above. The generated docs say so plainly.
+- In-container Docker for Claude Code (build/run/Testcontainers) is **opt-in and off by
+  default**, with two modes: **Sysbox** (`--runtime=sysbox-runc`) gives a full in-container
+  Docker daemon that stays unprivileged with no host access (requires Sysbox on a Linux
+  host); **privileged** `docker-in-docker` gives Docker anywhere but makes the container
+  `--privileged`, which grants host kernel/device access and voids the isolation above. The
+  generated docs say which one is in effect.
 - Login and conversation memory persist per project in `.devcontainer/claude-home/`
   (gitignored) — sign in once, it survives container rebuilds.
 - Every terminal session starts in Claude Code's `auto` permission mode; pushing is
@@ -55,9 +58,10 @@ understanding, though:
   under `.git/hooks`, an editor task in `.vscode/`, a `Makefile` you run on the host — run
   with your privileges, not the container's. Review changes (they are tracked in git) before
   running project tooling on the host, and prefer working inside the container.
-- **`enable_docker` is an explicit trade-off.** Turning it on re-introduces a privileged
-  container and, with it, host access. Leave it off unless you truly need Claude Code to
-  build and run its own containers.
+- **In-container Docker is an explicit trade-off.** If Claude Code needs to build/run its
+  own containers, prefer the **Sysbox** mode (Docker inside, still no host access) where the
+  host supports it. The **privileged** `docker-in-docker` mode re-introduces host access and
+  should only be used when Sysbox is not available and you accept that.
 
 ## Usage
 

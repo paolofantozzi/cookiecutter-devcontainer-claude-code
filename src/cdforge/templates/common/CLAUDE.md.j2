@@ -27,6 +27,12 @@ container:
   compose network, by hostname (`db`, `redis`). Those services are not on the host
   filesystem and the container cannot control the host's Docker.
 {% endif %}
+{% if docker_mode == 'sysbox' %}
+- Has an in-container Docker daemon isolated by the Sysbox runtime. You can `docker
+  build`/`docker run`/use Testcontainers here; the container is still unprivileged and has no
+  host access. If `docker` is not yet responding after a restart, run
+  `bash .devcontainer/docker-start.sh`.
+{% endif %}
 {% if enable_docker %}
 - Has in-container Docker (Docker-in-Docker) enabled. NOTE: this makes the container run
   `--privileged`, which grants access to the host kernel and block devices and therefore

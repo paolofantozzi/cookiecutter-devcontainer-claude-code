@@ -43,11 +43,25 @@ network, reachable by hostname (`db`, `redis`). They are managed by the host's D
 your request when the devcontainer starts — the devcontainer itself never gets the Docker
 socket or any host access.
 {% endif %}
+{% if docker_mode == 'sysbox' %}
+
+### In-container Docker (Sysbox)
+
+This project runs Claude Code's own Docker daemon **inside** the devcontainer, isolated by
+the [Sysbox](https://github.com/nestybox/sysbox) runtime. Claude Code can `docker build`,
+`docker run`, use Testcontainers, etc., and the container is still **unprivileged with no
+host access** — Sysbox uses user namespaces instead of `--privileged`.
+
+**Host prerequisite:** the host must have Sysbox installed and Docker configured to use the
+`sysbox-runc` runtime (see the Sysbox install guide). Without it, the container will fail to
+start because of `--runtime=sysbox-runc`. Sysbox requires a Linux host and does not work with
+Docker Desktop. The daemon is started by `.devcontainer/docker-start.sh` on container start.
+{% endif %}
 {% if enable_docker %}
 
-> ⚠️ This project was generated with in-container Docker (`docker-in-docker`) enabled so
-> Claude Code can build and run its own containers. That feature makes the devcontainer run
-> **`--privileged`**, which gives processes inside it access to the host's kernel and block
-> devices — it **voids the host-isolation guarantee above**. Only keep it if you accept that
-> trade-off; otherwise regenerate the project without it.
+> ⚠️ This project was generated with **privileged** in-container Docker (`docker-in-docker`)
+> so Claude Code can build and run its own containers. That feature makes the devcontainer
+> run **`--privileged`**, which gives processes inside it access to the host's kernel and
+> block devices — it **voids the host-isolation guarantee above**. Prefer the Sysbox mode if
+> your host supports it; otherwise only keep this if you accept the trade-off.
 {% endif %}

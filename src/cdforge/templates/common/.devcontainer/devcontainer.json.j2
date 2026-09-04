@@ -26,7 +26,12 @@
   "hostRequirements": {
     "gpu": "optional"
   },
-  "runArgs": ["--gpus=all"],
+{% endif %}
+{% if run_args %}
+  "runArgs": {{ run_args | tojson }},
+{% endif %}
+{% if docker_mode == 'sysbox' %}
+  "postStartCommand": "bash .devcontainer/docker-start.sh",
 {% endif %}
 {% if not use_compose %}
   "mounts": [

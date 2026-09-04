@@ -42,11 +42,21 @@ def run_wizard() -> tuple[dict[str, Any], Path]:
         'Make the GPU available inside the devcontainer?', default=False
     ).ask()
 
-    answers['enable_docker'] = questionary.confirm(
-        'Allow Claude Code to run its own containers inside the devcontainer? '
-        'WARNING: this enables docker-in-docker, which makes the container run '
-        '--privileged and REMOVES host isolation.',
-        default=False,
+    answers['docker_mode'] = questionary.select(
+        'In-container Docker for Claude Code (build/run/Testcontainers)?',
+        choices=[
+            questionary.Choice('None — maximum sandbox (default)', value='none'),
+            questionary.Choice(
+                'Sysbox — Docker inside, still unprivileged/no host access '
+                '(requires sysbox on the host)',
+                value='sysbox',
+            ),
+            questionary.Choice(
+                'Privileged docker-in-docker — full Docker but REMOVES host isolation',
+                value='privileged',
+            ),
+        ],
+        default='none',
     ).ask()
 
     catalog = skills_for_type(project_type.id)

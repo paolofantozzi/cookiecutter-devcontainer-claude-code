@@ -38,9 +38,6 @@ def build_context(
     context.setdefault('project_slug', slugify(context['project_name']))
     context.setdefault('git_remote_url', '')
     context.setdefault('gpu_enabled', False)
-    # Opt-in: adds the docker-in-docker feature, which forces the devcontainer to run
-    # `--privileged`. That breaks host isolation, so it is off by default.
-    context.setdefault('enable_docker', False)
 
     # Projects that need backing services (Postgres/Redis) get them as *sibling*
     # containers via the Dev Containers Docker Compose workflow: the devcontainer itself
@@ -50,6 +47,30 @@ def build_context(
         project_type.id == 'django_drf'
         and (context.get('database') == 'postgres' or context.get('include_celery'))
     )
+
+    # How (if at all) Claude Code can run its own containers inside the devcontainer:
+    #   'none'       - no in-container Docker (default, maximum sandbox).
+    #   'sysbox'     - a full Docker daemon runs inside, isolated by the sysbox runtime
+    #                  (user-namespaced): no --privileged, no host access. Requires sysbox
+    #                  installed on the host.
+    #   'privileged' - the docker-in-docker feature, which forces --privileged and REMOVES
+    #                  host isolation.
+    docker_mode = context.get('docker_mode')
+    if docker_mode not in ('none', 'sysbox', 'privileged'):
+        # Backward compatibility with the older boolean answer.
+        docker_mode = 'privileged' if context.get('enable_docker') else 'none'
+    context['docker_mode'] = docker_mode
+    # `enable_docker` now specifically means "the privileged docker-in-docker feature".
+    context['enable_docker'] = docker_mode == 'privileged'
+
+    # runArgs for the plain (non-compose) layout. In the compose layout the runtime/privilege
+    # is expressed on the `app` service instead.
+    run_args: list[str] = []
+    if context['gpu_enabled'] and not context['use_compose']:
+        run_args.append('--gpus=all')
+    if docker_mode == 'sysbox' and not context['use_compose']:
+        run_args.append('--runtime=sysbox-runc')
+    context['run_args'] = run_args
 
     context['project_type'] = project_type.id
     context['project_type_label'] = project_type.label

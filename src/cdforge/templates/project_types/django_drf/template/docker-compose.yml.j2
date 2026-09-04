@@ -10,6 +10,14 @@ services:
       context: .
       dockerfile: .devcontainer/Dockerfile
     command: sleep infinity
+{% if docker_mode == 'sysbox' %}
+    # Full Docker inside the devcontainer, isolated by sysbox (unprivileged, no host access).
+    runtime: sysbox-runc
+{% endif %}
+{% if docker_mode == 'privileged' %}
+    # WARNING: privileged re-introduces host kernel/device access (voids host isolation).
+    privileged: true
+{% endif %}
     volumes:
       - .:/workspaces/{{ project_slug }}:cached
       # The container that defines the sandbox must not be editable from inside it:

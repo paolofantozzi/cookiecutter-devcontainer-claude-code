@@ -74,6 +74,20 @@ def test_docker_compose_defines_app_and_sibling_services(tmp_path: Path) -> None
     assert 'nvidia' in compose
 
 
+def test_sysbox_mode_sets_runtime_on_app_service(tmp_path: Path) -> None:
+    answers = load_answers_file(FIXTURE)
+    answers['docker_mode'] = 'sysbox'
+    output_dir = tmp_path / 'notes-api-sysbox'
+
+    project_dir = scaffold_project(answers, output_dir)
+    compose = (project_dir / 'docker-compose.yml').read_text()
+
+    assert 'runtime: sysbox-runc' in compose
+    assert 'privileged: true' not in compose
+    config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
+    assert 'ghcr.io/devcontainers/features/docker-in-docker:2' not in config['features']
+
+
 def test_settings_use_sibling_service_hostnames(tmp_path: Path) -> None:
     project_dir = _scaffold(tmp_path)
 

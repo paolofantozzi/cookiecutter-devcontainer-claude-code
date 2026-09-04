@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -85,6 +86,24 @@ def test_enable_docker_opt_in_adds_docker_in_docker(tmp_path: Path) -> None:
     assert 'ghcr.io/devcontainers/features/docker-in-docker:2' in config['features']
     # The generated docs must warn that this re-introduces host access.
     assert 'privileged' in (project_dir / 'README.md').read_text()
+
+
+def test_sysbox_mode_gives_docker_without_privilege(tmp_path: Path) -> None:
+    answers = load_answers_file(FIXTURE)
+    answers['docker_mode'] = 'sysbox'
+    output_dir = tmp_path / 'widget-tool-sysbox'
+
+    project_dir = scaffold_project(answers, output_dir)
+    config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
+
+    # Sysbox uses the runtime, not the privileged docker-in-docker feature.
+    assert 'ghcr.io/devcontainers/features/docker-in-docker:2' not in config['features']
+    assert '--runtime=sysbox-runc' in config['runArgs']
+    assert config['postStartCommand'] == 'bash .devcontainer/docker-start.sh'
+    # The daemon bootstrap script ships and is executable.
+    start = project_dir / '.devcontainer' / 'docker-start.sh'
+    assert start.exists()
+    assert os.access(start, os.X_OK)
 
 
 def test_project_name_cannot_inject_devcontainer_json_keys(tmp_path: Path) -> None:
