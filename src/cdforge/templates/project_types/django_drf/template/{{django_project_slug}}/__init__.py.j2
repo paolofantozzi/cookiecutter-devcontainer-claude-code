@@ -1,0 +1,7 @@
+"""{{ project_name }} Django project configuration package."""
+
+{% if include_celery %}
+from {{ django_project_slug }}.celery import app as celery_app
+
+__all__ = ['celery_app']
+{% endif %}

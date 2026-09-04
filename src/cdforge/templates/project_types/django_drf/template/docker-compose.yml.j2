@@ -1,0 +1,28 @@
+{% if database == 'postgres' or include_celery %}
+services:
+{% if database == 'postgres' %}
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: {{ project_slug.replace('-', '_') }}
+      POSTGRES_USER: {{ project_slug.replace('-', '_') }}
+      POSTGRES_PASSWORD: devpassword
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+{% endif %}
+{% if include_celery %}
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+{% endif %}
+
+{% if database == 'postgres' %}
+volumes:
+  db-data:
+{% endif %}
+{% endif %}

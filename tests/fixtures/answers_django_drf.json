@@ -1,0 +1,15 @@
+{
+  "project_name": "Notes API",
+  "git_remote_url": "https://example.com/notes-api.git",
+  "project_type": "django_drf",
+  "gpu_enabled": true,
+  "optional_skills": ["api-docs-writer", "security-audit-helper"],
+  "django_project_slug": "notes_api_config",
+  "initial_app_name": "core",
+  "database": "postgres",
+  "auth_method": "simplejwt",
+  "include_celery": true,
+  "api_docs": "drf-spectacular",
+  "author_name": "Test Author",
+  "author_email": "author@example.com"
+}

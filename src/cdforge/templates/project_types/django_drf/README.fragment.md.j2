@@ -1,0 +1,20 @@
+## Usage
+
+```console
+$ cp .env.example .env
+{% if database == 'postgres' or include_celery %}
+$ docker compose up -d
+{% endif %}
+$ uv run python manage.py migrate
+$ uv run python manage.py runserver
+```
+
+The API is served under `/api/`, with a health check at `/api/health/`{% if api_docs == 'drf-spectacular' %} and an OpenAPI schema at `/api/schema/`{% endif %}.
+
+## Development
+
+```console
+$ uv run pytest          # run the test suite
+$ uv run ruff check .     # lint
+$ uv run ruff format .    # format
+```

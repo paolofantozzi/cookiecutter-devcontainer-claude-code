@@ -1,0 +1,41 @@
+[project]
+name = "cdforge"
+version = "0.1.0"
+description = "Cookiecutter-style scaffolder for VS Code devcontainers with a sandboxed Claude Code inside"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+    "typer>=0.15",
+    "questionary>=2.0",
+    "jinja2>=3.1",
+]
+
+[project.scripts]
+cdforge = "cdforge.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.11.26,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

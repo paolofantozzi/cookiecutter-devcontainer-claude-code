@@ -1,0 +1,27 @@
+---
+name: django-drf-conventions
+description: Coding conventions for {{ project_name }} - Django REST Framework app structure, uv, ruff, single quotes, one import per line.
+---
+
+This is a Django REST Framework API managed with `uv`. Follow these conventions:
+
+- Manage dependencies with `uv add` / `uv add --dev`; run everything through `uv run`
+  (`uv run python manage.py ...`, `uv run pytest`) rather than a bare `python`/`pip`.
+- Each Django app lives under `apps/<name>/` and is registered in `INSTALLED_APPS` as
+  `apps.<name>`. Give a new app the same internal layout as
+  `apps/{{ initial_app_name }}/`: `models.py`, `serializers.py`, `views.py`, `urls.py`,
+  `tests/`.
+- Use DRF's class-based views (`APIView`, `ModelViewSet`, ...) and `ModelSerializer` rather
+  than hand-rolled request parsing.
+- String literals use single quotes, enforced by `uv run ruff format --check .`.
+- Imports are one per line and sorted, enforced by `uv run ruff check .`
+  (`ruff` `isort` rules with `force-single-line = true`). Never write
+  `from x import a, b` - write two `from x import a` / `from x import b` lines instead.
+- Tests use `pytest` + `pytest-django` + DRF's `APIClient`, not Django's `TestCase` /
+  `Client`. Mark database-touching tests with `@pytest.mark.django_db`.
+- New model fields need a migration (`uv run python manage.py makemigrations`) committed
+  alongside the model change.
+{% if database == 'postgres' %}
+- The local Postgres instance runs via `docker compose up -d db` (uses the devcontainer's
+  own isolated Docker-in-Docker daemon); connection settings come from `DATABASE_URL`.
+{% endif %}

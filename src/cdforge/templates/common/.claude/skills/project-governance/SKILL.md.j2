@@ -1,0 +1,39 @@
+---
+name: project-governance
+description: Project housekeeping rules for {{ project_name }} - keep CLAUDE.md, README, CHANGELOG, version, and commit hygiene in sync on every change.
+---
+
+Apply these rules on every change to this project, without being asked:
+
+## Documentation
+
+- **CLAUDE.md**: after any change to architecture, conventions, dependencies, or how the
+  project is run, update CLAUDE.md so it stays an accurate map of the project for the next
+  session. Do not let it drift.
+- **README.md**: keep it accurate for a human reader - installation, usage, and any
+  user-facing behavior that changed.
+
+## Versioning
+
+- The project version lives in `pyproject.toml` under `[project].version`. Follow semantic
+  versioning: patch for fixes, minor for backward-compatible features, major for breaking
+  changes.
+- On every notable change, bump the version and add an entry to `CHANGELOG.md` following the
+  Keep a Changelog format (`### Added` / `### Changed` / `### Fixed` / `### Removed` under a
+  new version heading). Do this in the same commit as the change it describes.
+
+## Commits
+
+- Commit each new feature or meaningful change on its own, with a Conventional Commit
+  message (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, ...). Do not batch unrelated
+  changes into one commit.
+- **Never run `git push`.** It is blocked by this project's `.claude/settings.json` and
+  should stay that way. Commits stay local until a human decides to push them.
+
+## Tests
+
+- `.githooks/pre-commit` runs the linter and the full test suite before a commit is
+  accepted; a failing commit means the change is not ready, not something to bypass with
+  `--no-verify`.
+- Keep the test suite itself up to date: every new feature or bug fix needs a test that
+  would fail without it.

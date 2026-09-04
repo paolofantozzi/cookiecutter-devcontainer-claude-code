@@ -1,0 +1,14 @@
+{
+  "project_name": "Widget Tool",
+  "git_remote_url": "",
+  "project_type": "python_uv_tool",
+  "gpu_enabled": false,
+  "optional_skills": ["commit-craftsman"],
+  "package_import_name": "widget_tool",
+  "cli_command_name": "widget-tool",
+  "python_version": "3.12",
+  "include_mypy": true,
+  "license_id": "MIT",
+  "author_name": "Test Author",
+  "author_email": "author@example.com"
+}

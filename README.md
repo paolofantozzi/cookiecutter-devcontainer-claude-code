@@ -1,0 +1,72 @@
+# cdforge
+
+A cookiecutter-style scaffolder that generates new projects shipping a VS Code devcontainer
+with Claude Code running *inside* it — sandboxed so Claude Code can only ever reach that
+project's own folder, never the rest of your machine. Claude Code does not need to be
+installed on your host at all.
+
+## What you get in a generated project
+
+- A `.devcontainer/` (Docker-based) with Claude Code pre-installed via the official
+  [Claude Code Dev Container Feature](https://github.com/anthropics/devcontainer-features/tree/main/src/claude-code),
+  and the VS Code extension auto-added when you open it.
+- **Hard sandboxing, not a Claude Code setting**: the container only ever mounts the
+  project's own folder plus its own Claude Code config directory. It runs an isolated
+  Docker-in-Docker daemon, so Claude Code can build/run containers of its own without ever
+  touching your host's Docker installation or filesystem.
+- Login and conversation memory persist per project in `.devcontainer/claude-home/`
+  (gitignored) — sign in once, it survives container rebuilds.
+- Every terminal session starts in Claude Code's `auto` permission mode; `git push` is
+  denied outright at the settings level.
+- Optional GPU passthrough (`--gpus=all`) for the devcontainer itself, chosen at scaffold
+  time.
+- A `.githooks/pre-commit` hook that runs the linter and the full test suite before any
+  commit is accepted.
+- A `CLAUDE.md` telling the embedded Claude Code to keep itself, `README.md`,
+  `CHANGELOG.md`, and `[project].version` up to date, commit per feature with Conventional
+  Commits, and never push.
+
+## Project types
+
+| Type | What it scaffolds |
+| --- | --- |
+| `python_uv_tool` | A `uv`-managed Python CLI (Typer), ruff-formatted, pytest tests. |
+| `django_drf` | A Django REST Framework API: pytest-django, optional Postgres/Redis/Celery via `docker-compose.yml` (started with the devcontainer's own Docker-in-Docker), JWT or session auth, optional drf-spectacular docs. |
+
+Run `cdforge list-types` to see this list from the CLI, and `cdforge list-skills` for the
+optional Claude Code skills you can add on top of the mandatory ones.
+
+## Usage
+
+```console
+$ uv tool install cdforge   # or: uvx cdforge new
+$ cdforge new
+```
+
+Answer the prompts (project name, git remote if one exists yet, project type, GPU, optional
+skills, then that type's own questions), then:
+
+1. `code <project-dir>`
+2. Command Palette → **Dev Containers: Reopen in Container**
+3. Open a terminal in the container and run `claude` once to sign in.
+
+For scripted/non-interactive use:
+
+```console
+$ cdforge new --answers-file answers.json --output-dir my-project --non-interactive
+```
+
+## Developing cdforge itself
+
+```console
+$ uv sync --all-extras
+$ uv run pytest
+$ uv run ruff check .
+$ uv run ruff format .
+```
+
+`git config core.hooksPath .githooks` is already set for this repository; the pre-commit
+hook runs the same lint + test gate described above.
+
+See [CLAUDE.md](./CLAUDE.md) for the full architecture and the conventions this project
+follows.

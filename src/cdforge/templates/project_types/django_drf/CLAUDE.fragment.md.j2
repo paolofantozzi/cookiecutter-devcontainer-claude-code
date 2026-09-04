@@ -1,0 +1,24 @@
+## Project layout
+
+- `{{ django_project_slug }}/` — Django settings, URL root, WSGI/ASGI entry points{% if include_celery %}, and the Celery app{% endif %}.
+- `apps/{{ initial_app_name }}/` — the first Django app: models, serializers, views, urls,
+  tests. New apps follow the same `apps/<name>/` layout and are added to `INSTALLED_APPS`
+  as `apps.<name>`.
+- Database: **{{ database }}**{% if database == 'postgres' %}, started via `docker-compose.yml`
+  (`docker compose up -d db`) using the devcontainer's own isolated Docker-in-Docker daemon.
+  `DATABASE_URL` in `.env` (copy it from `.env.example`) points Django at it{% endif %}.
+{% if include_celery %}
+- Background tasks run through Celery, with Redis as broker/result backend (also in
+  `docker-compose.yml`, `docker compose up -d redis`).
+{% endif %}
+
+## Running things
+
+- `uv run python manage.py runserver` — dev server.
+- `uv run python manage.py makemigrations` / `migrate` — schema changes.
+- `uv run pytest` — test suite (uses SQLite automatically unless `DATABASE_URL` is set, so it
+  runs without any external service).
+{% if database == 'postgres' or include_celery %}
+- `docker compose up -d` — start the local services this project depends on
+  ({% if database == 'postgres' %}Postgres{% endif %}{% if database == 'postgres' and include_celery %}, {% endif %}{% if include_celery %}Redis{% endif %}).
+{% endif %}

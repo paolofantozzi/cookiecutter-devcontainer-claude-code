@@ -1,0 +1,14 @@
+## Project layout
+
+- `src/{{ package_import_name }}/` — the package. `cli.py` defines the `{{ cli_command_name }}`
+  command entry point.
+- `tests/` — pytest test suite, mirrors the package layout.
+{% if include_mypy %}
+- Type-checked with `mypy` (`uv run mypy src`).
+{% endif %}
+
+## Running things
+
+- `uv run {{ cli_command_name }}` — run the CLI.
+- `uv run pytest` — run the test suite.
+- `uv run ruff check .` / `uv run ruff format .` — lint / format.

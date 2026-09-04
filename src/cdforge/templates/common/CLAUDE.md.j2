@@ -1,0 +1,51 @@
+# CLAUDE.md
+
+Guidance for Claude Code when working in this repository. Keep this file accurate: update
+it whenever architecture, conventions, or the development workflow change (see the
+`project-governance` skill).
+
+## Project
+
+{{ project_name }} — {{ project_type_label }}.
+
+## Environment
+
+This project runs inside a VS Code devcontainer. Claude Code, its own dependencies, and all
+project tooling (linters, test runner, database clients) live inside the container. The
+container:
+
+- Can only see this project's files, plus its own persistent Claude Code config at
+  `~/.claude` (bind-mounted from `.devcontainer/claude-home/`, gitignored). It has no access
+  to any other part of the host filesystem.
+- Runs its own isolated Docker daemon (Docker-in-Docker), separate from the host's Docker.
+  Containers started from inside the devcontainer do not share the host's images, volumes,
+  or storage.
+{% if gpu_enabled %}
+- Has GPU access (`--gpus=all`) for processes running directly inside the devcontainer.
+  Nested containers started via the isolated Docker-in-Docker daemon do not have GPU access.
+{% endif %}
+- Starts every terminal session in Claude Code's `auto` permission mode, so commands run
+  without interactive approval prompts. `git push` is denied at the settings level
+  regardless of permission mode.
+
+## Language and style
+
+- All code, comments, commit messages, and documentation are in English.
+- Dependencies and virtual environments are managed with `uv`; run project commands with
+  `uv run ...` rather than invoking tools from a global install.
+- Code style is enforced by `ruff` (`uv run ruff check .`, `uv run ruff format .`):
+  - String literals use single quotes.
+  - Imports are one per line and sorted (`ruff` `isort` rules with
+    `force-single-line = true`); never combine multiple names in one `from x import a, b`.
+
+{% include "CLAUDE.fragment.md.j2" %}
+
+## Workflow
+
+- Keep `README.md` and this file in sync with what the project actually does.
+- Bump `[project].version` in `pyproject.toml` and add a `CHANGELOG.md` entry (Keep a
+  Changelog format) for every notable change, in the same commit as the change.
+- Commit each feature or fix on its own with a Conventional Commit message. Never
+  `git push` — it is blocked and commits are meant to stay local until a human pushes them.
+- `.githooks/pre-commit` runs the linter and the test suite automatically before a commit
+  is accepted; keep the test suite up to date rather than bypassing a failing hook.

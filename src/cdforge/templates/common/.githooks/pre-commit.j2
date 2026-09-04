@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Running ruff and the test suite before allowing this commit..."
+
+uv run ruff check .
+uv run ruff format --check .
+{% include "precommit.fragment.sh.j2" %}
+
+echo "All checks passed."

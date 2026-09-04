@@ -1,0 +1,32 @@
+import pytest
+from django.contrib.auth import get_user_model
+from rest_framework.test import APIClient
+
+from apps.{{ initial_app_name }}.models import Note
+
+
+@pytest.fixture
+def authenticated_client(db) -> APIClient:
+    user = get_user_model().objects.create_user(username='tester', password='pass1234')
+    client = APIClient()
+    client.force_authenticate(user=user)
+    return client
+
+
+@pytest.mark.django_db
+def test_create_note(authenticated_client: APIClient) -> None:
+    response = authenticated_client.post('/api/notes/', {'title': 'First note', 'content': 'Hello'})
+
+    assert response.status_code == 201
+    assert Note.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_list_notes_requires_authentication() -> None:
+    response = APIClient().get('/api/notes/')
+
+{% if auth_method == 'simplejwt' %}
+    assert response.status_code == 401
+{% else %}
+    assert response.status_code == 403
+{% endif %}

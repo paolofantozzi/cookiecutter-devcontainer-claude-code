@@ -1,0 +1,31 @@
+{
+  "name": "{{ project_name }}",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "{{ remote_user }}",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": true,
+      "version": "latest"
+    },
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+{% for feature_id, feature_opts in extra_features.items() %}
+    ,"{{ feature_id }}": {{ feature_opts | tojson }}
+{% endfor %}
+  },
+{% if gpu_enabled %}
+  "hostRequirements": {
+    "gpu": "optional"
+  },
+  "runArgs": ["--gpus=all"],
+{% endif %}
+  "mounts": [
+    "source=${localWorkspaceFolder}/.devcontainer/claude-home,target=/home/{{ remote_user }}/.claude,type=bind"
+  ],
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/{{ remote_user }}/.claude"
+  },
+  "initializeCommand": "mkdir -p \"${localWorkspaceFolder}/.devcontainer/claude-home\"",
+  "postCreateCommand": "bash .devcontainer/post-create.sh"
+}

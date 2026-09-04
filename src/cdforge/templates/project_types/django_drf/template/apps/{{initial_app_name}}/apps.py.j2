@@ -1,0 +1,7 @@
+from django.apps import AppConfig
+
+
+class {{ initial_app_name | capitalize }}Config(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'apps.{{ initial_app_name }}'
+    label = '{{ initial_app_name }}'

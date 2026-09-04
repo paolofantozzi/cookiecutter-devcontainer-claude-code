@@ -1,0 +1,28 @@
+# Claude Code memory, session history and login credentials for this project.
+# This lives on disk here (bind-mounted into the devcontainer) so login only
+# happens once per project, but it must never be committed.
+/.devcontainer/claude-home/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
+build/
+
+# Editors / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+
+{% if project_type == 'django_drf' %}
+# Django
+*.sqlite3
+media/
+staticfiles/
+.env
+{% endif %}

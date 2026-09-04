@@ -1,0 +1,31 @@
+# {{ project_name }}
+
+{{ project_type_label }}, developed inside a sandboxed VS Code devcontainer with Claude
+Code.
+
+## Getting started
+
+1. Install [Docker](https://www.docker.com/) and the [VS Code Dev Containers
+   extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
+   Claude Code itself does **not** need to be installed on your machine — it runs inside the
+   container.
+2. Open this folder in VS Code and choose **Dev Containers: Reopen in Container** from the
+   Command Palette (first build downloads the base image and installs tooling, so it takes
+   a few minutes).
+3. Open a terminal inside the container and run `claude` once to sign in. The session is
+   saved to `.devcontainer/claude-home/` (gitignored) and persists across container rebuilds,
+   so you only sign in once per project.
+
+{% include "README.fragment.md.j2" %}
+
+## Development conventions
+
+See [CLAUDE.md](./CLAUDE.md) for the full set of conventions this project follows
+(code style, versioning, commit and test discipline).
+
+## Sandboxing
+
+The devcontainer only mounts this project's folder and its own Claude Code config
+directory — nothing else on the host is reachable from inside it. It runs its own isolated
+Docker-in-Docker daemon, so Claude Code can build and run containers without ever touching
+the host's Docker installation or filesystem.

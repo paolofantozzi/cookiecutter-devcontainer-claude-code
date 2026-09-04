@@ -1,0 +1,20 @@
+from django.contrib import admin
+from django.urls import include
+from django.urls import path
+{% if api_docs == 'drf-spectacular' %}
+from drf_spectacular.views import SpectacularAPIView
+{% endif %}
+{% if auth_method == 'simplejwt' %}
+from rest_framework_simplejwt.views import TokenObtainPairView
+{% endif %}
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('api/', include('apps.{{ initial_app_name }}.urls')),
+{% if auth_method == 'simplejwt' %}
+    path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+{% endif %}
+{% if api_docs == 'drf-spectacular' %}
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+{% endif %}
+]

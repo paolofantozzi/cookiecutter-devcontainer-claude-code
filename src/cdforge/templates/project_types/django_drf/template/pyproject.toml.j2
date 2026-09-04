@@ -1,0 +1,55 @@
+[project]
+name = "{{ project_slug }}"
+version = "0.1.0"
+description = "{{ project_name }}"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    { name = "{{ author_name }}", email = "{{ author_email }}" },
+]
+dependencies = [
+    "django>=5.1",
+    "djangorestframework>=3.15",
+    "dj-database-url>=2.3",
+    "python-dotenv>=1.0",
+{% if database == 'postgres' %}
+    "psycopg[binary]>=3.2",
+{% endif %}
+{% if auth_method == 'simplejwt' %}
+    "djangorestframework-simplejwt>=5.3",
+{% endif %}
+{% if api_docs == 'drf-spectacular' %}
+    "drf-spectacular>=0.28",
+{% endif %}
+{% if include_celery %}
+    "celery>=5.4",
+    "redis>=5.1",
+{% endif %}
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-django>=4.9",
+    "ruff>=0.8",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "{{ django_project_slug }}.settings"
+python_files = ["tests.py", "test_*.py"]
