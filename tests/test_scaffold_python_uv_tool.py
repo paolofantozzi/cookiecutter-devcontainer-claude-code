@@ -45,14 +45,30 @@ def test_devcontainer_json_is_valid_and_wired_for_sandboxing(tmp_path: Path) -> 
 
     config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
 
-    assert 'ghcr.io/devcontainers/features/docker-in-docker:2' in config['features']
+    # docker-in-docker is what forces the container to run --privileged; it must NOT be
+    # present by default, so the devcontainer stays unprivileged and host-isolated.
+    assert 'ghcr.io/devcontainers/features/docker-in-docker:2' not in config['features']
     assert 'ghcr.io/anthropics/devcontainer-features/claude-code:1.0' in config['features']
+    assert config['build'] == {'dockerfile': 'Dockerfile'}
     assert config['mounts'] == [
         'source=${localWorkspaceFolder}/.devcontainer/claude-home,'
         'target=/home/vscode/.claude,type=bind'
     ]
     assert config['containerEnv']['CLAUDE_CONFIG_DIR'] == '/home/vscode/.claude'
     assert 'runArgs' not in config
+
+
+def test_enable_docker_opt_in_adds_docker_in_docker(tmp_path: Path) -> None:
+    answers = load_answers_file(FIXTURE)
+    answers['enable_docker'] = True
+    output_dir = tmp_path / 'widget-tool-docker'
+
+    project_dir = scaffold_project(answers, output_dir)
+    config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
+
+    assert 'ghcr.io/devcontainers/features/docker-in-docker:2' in config['features']
+    # The generated docs must warn that this re-introduces host access.
+    assert 'privileged' in (project_dir / 'README.md').read_text()
 
 
 def test_project_name_cannot_inject_devcontainer_json_keys(tmp_path: Path) -> None:

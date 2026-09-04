@@ -1,28 +1,38 @@
 {
   "name": {{ project_name | tojson }},
+{% if use_compose %}
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/{{ project_slug }}",
+{% else %}
   "build": {
     "dockerfile": "Dockerfile"
   },
+{% endif %}
   "remoteUser": "{{ remote_user }}",
   "features": {
+{% if enable_docker %}
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "moby": true,
       "version": "latest"
     },
+{% endif %}
     "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
 {% for feature_id, feature_opts in extra_features.items() %}
     ,"{{ feature_id }}": {{ feature_opts | tojson }}
 {% endfor %}
   },
-{% if gpu_enabled %}
+{% if gpu_enabled and not use_compose %}
   "hostRequirements": {
     "gpu": "optional"
   },
   "runArgs": ["--gpus=all"],
 {% endif %}
+{% if not use_compose %}
   "mounts": [
     "source=${localWorkspaceFolder}/.devcontainer/claude-home,target=/home/{{ remote_user }}/.claude,type=bind"
   ],
+{% endif %}
   "containerEnv": {
     "CLAUDE_CONFIG_DIR": "/home/{{ remote_user }}/.claude"
   },

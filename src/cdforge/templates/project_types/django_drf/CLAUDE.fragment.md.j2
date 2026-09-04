@@ -4,12 +4,13 @@
 - `apps/{{ initial_app_name }}/` — the first Django app: models, serializers, views, urls,
   tests. New apps follow the same `apps/<name>/` layout and are added to `INSTALLED_APPS`
   as `apps.<name>`.
-- Database: **{{ database }}**{% if database == 'postgres' %}, started via `docker-compose.yml`
-  (`docker compose up -d db`) using the devcontainer's own isolated Docker-in-Docker daemon.
-  `DATABASE_URL` in `.env` (copy it from `.env.example`) points Django at it{% endif %}.
+- Database: **{{ database }}**{% if database == 'postgres' %}, running as a sibling container
+  (`db`) started automatically with the devcontainer via `docker-compose.yml`. It is reachable
+  at hostname `db:5432`; `DATABASE_URL` in `.env` (copy it from `.env.example`) already points
+  Django at it{% endif %}.
 {% if include_celery %}
-- Background tasks run through Celery, with Redis as broker/result backend (also in
-  `docker-compose.yml`, `docker compose up -d redis`).
+- Background tasks run through Celery, with Redis as broker/result backend, running as a
+  sibling container (`redis`, reachable at `redis:6379`) started with the devcontainer.
 {% endif %}
 
 ## Running things
@@ -18,7 +19,6 @@
 - `uv run python manage.py makemigrations` / `migrate` — schema changes.
 - `uv run pytest` — test suite (uses SQLite automatically unless `DATABASE_URL` is set, so it
   runs without any external service).
-{% if database == 'postgres' or include_celery %}
-- `docker compose up -d` — start the local services this project depends on
-  ({% if database == 'postgres' %}Postgres{% endif %}{% if database == 'postgres' and include_celery %}, {% endif %}{% if include_celery %}Redis{% endif %}).
+{% if use_compose %}
+- The `{% if database == 'postgres' %}db{% endif %}{% if database == 'postgres' and include_celery %}/{% endif %}{% if include_celery %}redis{% endif %}` service{% if database == 'postgres' and include_celery %}s{% endif %} start and stop together with the devcontainer — you do not run `docker` yourself. They live on the compose network and are not on the host filesystem.
 {% endif %}

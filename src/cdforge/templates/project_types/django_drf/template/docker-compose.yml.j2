@@ -1,5 +1,38 @@
-{% if database == 'postgres' or include_celery %}
+{% if use_compose %}
+# Dev Containers "Docker Compose" project. The `app` service IS the devcontainer that
+# Claude Code runs in; `db`/`redis` are sibling containers on the same network. The app
+# container is NOT privileged and mounts only this workspace, so nothing on the host
+# filesystem is reachable from inside it. The services are reachable by hostname (`db`,
+# `redis`) over the compose network.
 services:
+  app:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    command: sleep infinity
+    volumes:
+      - .:/workspaces/{{ project_slug }}:cached
+      - ./.devcontainer/claude-home:/home/{{ remote_user }}/.claude
+    environment:
+      CLAUDE_CONFIG_DIR: /home/{{ remote_user }}/.claude
+{% if database == 'postgres' or include_celery %}
+    depends_on:
+{% if database == 'postgres' %}
+      - db
+{% endif %}
+{% if include_celery %}
+      - redis
+{% endif %}
+{% endif %}
+{% if gpu_enabled %}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+{% endif %}
 {% if database == 'postgres' %}
   db:
     image: postgres:16
@@ -20,8 +53,8 @@ services:
     ports:
       - "6379:6379"
 {% endif %}
-
 {% if database == 'postgres' %}
+
 volumes:
   db-data:
 {% endif %}

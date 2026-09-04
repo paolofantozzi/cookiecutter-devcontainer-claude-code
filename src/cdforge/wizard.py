@@ -42,6 +42,13 @@ def run_wizard() -> tuple[dict[str, Any], Path]:
         'Make the GPU available inside the devcontainer?', default=False
     ).ask()
 
+    answers['enable_docker'] = questionary.confirm(
+        'Allow Claude Code to run its own containers inside the devcontainer? '
+        'WARNING: this enables docker-in-docker, which makes the container run '
+        '--privileged and REMOVES host isolation.',
+        default=False,
+    ).ask()
+
     catalog = skills_for_type(project_type.id)
     if catalog:
         chosen = questionary.checkbox(

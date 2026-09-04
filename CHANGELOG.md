@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-09-05
+
+### Security
+
+- **Devcontainers are no longer privileged by default.** The `docker-in-docker` feature —
+  which forces the container to run `--privileged`, granting Claude Code inside it access to
+  the host kernel and block devices — is no longer included by default. It is now an explicit
+  opt-in (`enable_docker`, off by default) whose generated README/CLAUDE.md warn that it
+  voids the host-isolation guarantee.
+- `django_drf` projects that need Postgres/Redis now use the Dev Containers **Docker Compose**
+  workflow: the devcontainer is an ordinary, unprivileged `app` service and the databases run
+  as **sibling** containers reachable by hostname (`db`, `redis`) over a private compose
+  network — never on the host filesystem, and without any in-container Docker daemon. Service
+  URLs in `settings.py`/`.env.example` now use those hostnames instead of `localhost`.
+
+### Changed
+
+- GPU passthrough for compose-based projects is expressed as a device reservation on the
+  `app` service instead of a host `runArgs` entry.
+
 ## [0.1.1] - 2026-09-04
 
 ### Security

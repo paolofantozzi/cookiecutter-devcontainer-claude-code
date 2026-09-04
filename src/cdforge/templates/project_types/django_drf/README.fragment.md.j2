@@ -1,13 +1,23 @@
 ## Usage
 
+{% if use_compose %}
+The backing service{% if database == 'postgres' and include_celery %}s{% endif %}
+({% if database == 'postgres' %}Postgres{% endif %}{% if database == 'postgres' and include_celery %} and {% endif %}{% if include_celery %}Redis{% endif %})
+run as sibling containers that VS Code starts automatically together with the devcontainer,
+so there is nothing to `docker compose up` by hand.
+
 ```console
 $ cp .env.example .env
-{% if database == 'postgres' or include_celery %}
-$ docker compose up -d
-{% endif %}
 $ uv run python manage.py migrate
 $ uv run python manage.py runserver
 ```
+{% else %}
+```console
+$ cp .env.example .env
+$ uv run python manage.py migrate
+$ uv run python manage.py runserver
+```
+{% endif %}
 
 The API is served under `/api/`, with a health check at `/api/health/`{% if api_docs == 'drf-spectacular' %} and an OpenAPI schema at `/api/schema/`{% endif %}.
 

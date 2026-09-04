@@ -26,6 +26,21 @@ See [CLAUDE.md](./CLAUDE.md) for the full set of conventions this project follow
 ## Sandboxing
 
 The devcontainer only mounts this project's folder and its own Claude Code config
-directory — nothing else on the host is reachable from inside it. It runs its own isolated
-Docker-in-Docker daemon, so Claude Code can build and run containers without ever touching
-the host's Docker installation or filesystem.
+directory — nothing else on the host is reachable from inside it. It runs as an ordinary,
+**unprivileged** container: it has no access to the host's block devices, Docker socket, or
+filesystem.
+{% if use_compose %}
+
+Backing services (Postgres/Redis) run as **sibling containers** on a private compose
+network, reachable by hostname (`db`, `redis`). They are managed by the host's Docker at
+your request when the devcontainer starts — the devcontainer itself never gets the Docker
+socket or any host access.
+{% endif %}
+{% if enable_docker %}
+
+> ⚠️ This project was generated with in-container Docker (`docker-in-docker`) enabled so
+> Claude Code can build and run its own containers. That feature makes the devcontainer run
+> **`--privileged`**, which gives processes inside it access to the host's kernel and block
+> devices — it **voids the host-isolation guarantee above**. Only keep it if you accept that
+> trade-off; otherwise regenerate the project without it.
+{% endif %}

@@ -38,6 +38,18 @@ def build_context(
     context.setdefault('project_slug', slugify(context['project_name']))
     context.setdefault('git_remote_url', '')
     context.setdefault('gpu_enabled', False)
+    # Opt-in: adds the docker-in-docker feature, which forces the devcontainer to run
+    # `--privileged`. That breaks host isolation, so it is off by default.
+    context.setdefault('enable_docker', False)
+
+    # Projects that need backing services (Postgres/Redis) get them as *sibling*
+    # containers via the Dev Containers Docker Compose workflow: the devcontainer itself
+    # stays an ordinary, unprivileged container that can only reach the workspace, and the
+    # services live on the compose network (reachable by hostname, never on the host FS).
+    context['use_compose'] = bool(
+        project_type.id == 'django_drf'
+        and (context.get('database') == 'postgres' or context.get('include_celery'))
+    )
 
     context['project_type'] = project_type.id
     context['project_type_label'] = project_type.label
