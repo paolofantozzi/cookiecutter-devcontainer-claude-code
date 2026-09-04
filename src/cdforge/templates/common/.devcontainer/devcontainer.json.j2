@@ -22,6 +22,9 @@
     ,"{{ feature_id }}": {{ feature_opts | tojson }}
 {% endfor %}
   },
+{% if enable_docker and not use_compose %}
+  "overrideCommand": false,
+{% endif %}
 {% if gpu_enabled and not use_compose %}
   "hostRequirements": {
     "gpu": "optional"

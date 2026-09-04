@@ -84,6 +84,9 @@ def test_enable_docker_opt_in_adds_docker_in_docker(tmp_path: Path) -> None:
     config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
 
     assert 'ghcr.io/devcontainers/features/docker-in-docker:2' in config['features']
+    # docker-in-docker's entrypoint (which starts dockerd) only runs when the dev container
+    # command is not overridden.
+    assert config['overrideCommand'] is False
     # The generated docs must warn that this re-introduces host access.
     assert 'privileged' in (project_dir / 'README.md').read_text()
 

@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.10] - 2026-09-05
+
+### Fixed
+
+- Privileged `docker-in-docker` mode now sets `"overrideCommand": false` in the generated
+  `devcontainer.json`. Without it the Dev Containers CLI replaces the container command and
+  the docker-in-docker feature's entrypoint — which starts `dockerd` — never runs, so
+  `docker` inside the container did not work. Found by the end-to-end harness.
+
 ## [0.1.9] - 2026-09-05
 
 ### Fixed
