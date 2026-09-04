@@ -21,6 +21,11 @@ dependencies = [
 requires = ["uv_build>=0.11.26,<0.12.0"]
 build-backend = "uv_build"
 
+[tool.uv.build-backend]
+# The import package name can differ from the distribution name, so tell uv_build where the
+# module lives instead of letting it infer it from the project name.
+module-name = "{{ package_import_name }}"
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",

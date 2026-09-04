@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.9] - 2026-09-05
+
+### Fixed
+
+- The generated `python_uv_tool` `pyproject.toml` now declares
+  `[tool.uv.build-backend] module-name`, so choosing a package import name different from the
+  project name no longer breaks the build (`uv sync` previously failed with "Expected a Python
+  module at src/<project_name>/__init__.py"). Found by the new end-to-end harness.
+
 ## [0.1.8] - 2026-09-05
 
 ### Fixed

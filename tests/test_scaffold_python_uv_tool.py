@@ -171,6 +171,18 @@ def test_pyproject_has_required_style_conventions(tmp_path: Path) -> None:
     assert 'force-single-line = true' in pyproject
 
 
+def test_pyproject_declares_uv_build_module_name(tmp_path: Path) -> None:
+    # The import package name can differ from the distribution name; uv_build must be told
+    # where the module is, or `uv sync` fails with "Expected a Python module at ...".
+    answers = load_answers_file(FIXTURE)
+    answers['project_name'] = 'Totally Different Name'
+    answers['package_import_name'] = 'widget_tool'
+    project_dir = scaffold_project(answers, tmp_path / 'mismatch')
+
+    pyproject = (project_dir / 'pyproject.toml').read_text()
+    assert 'module-name = "widget_tool"' in pyproject
+
+
 def test_git_repository_is_initialized_with_one_clean_commit(tmp_path: Path) -> None:
     project_dir = _scaffold(tmp_path)
 
