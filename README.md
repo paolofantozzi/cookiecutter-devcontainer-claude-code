@@ -10,16 +10,23 @@ installed on your host at all.
 - A `.devcontainer/` (Docker-based) with Claude Code pre-installed via the official
   [Claude Code Dev Container Feature](https://github.com/anthropics/devcontainer-features/tree/main/src/claude-code),
   and the VS Code extension auto-added when you open it.
-- **Hard sandboxing, not a Claude Code setting**: the container only ever mounts the
-  project's own folder plus its own Claude Code config directory. It runs an isolated
-  Docker-in-Docker daemon, so Claude Code can build/run containers of its own without ever
-  touching your host's Docker installation or filesystem.
+- **Sandboxing by construction, not a Claude Code setting**: the container is an ordinary,
+  **unprivileged** container that only mounts the project's own folder plus its own Claude
+  Code config directory — no host block devices, no host Docker socket, no host filesystem.
+  `.devcontainer/` is mounted **read-only**, so the container that defines the sandbox
+  cannot be rewritten from inside it.
+- Projects that need backing services (django + Postgres/Redis) get them as **sibling
+  containers** via the Dev Containers Docker Compose workflow, reachable by hostname over a
+  private network — no in-container Docker daemon and no privilege required.
+- In-container Docker (`docker-in-docker`) is **opt-in and off by default**: enabling it
+  makes the container run `--privileged`, which grants host kernel/device access and voids
+  the isolation above. The generated docs say so plainly.
 - Login and conversation memory persist per project in `.devcontainer/claude-home/`
   (gitignored) — sign in once, it survives container rebuilds.
-- Every terminal session starts in Claude Code's `auto` permission mode; `git push` is
-  denied outright at the settings level.
-- Optional GPU passthrough (`--gpus=all`) for the devcontainer itself, chosen at scaffold
-  time.
+- Every terminal session starts in Claude Code's `auto` permission mode; pushing is
+  discouraged by a `permissions.deny` entry and a `pre-push` hook, and prevented in practice
+  because no push credentials are mounted into the container.
+- Optional GPU passthrough for the devcontainer itself, chosen at scaffold time.
 - A `.githooks/pre-commit` hook that runs the linter and the full test suite before any
   commit is accepted.
 - A `CLAUDE.md` telling the embedded Claude Code to keep itself, `README.md`,
@@ -31,10 +38,26 @@ installed on your host at all.
 | Type | What it scaffolds |
 | --- | --- |
 | `python_uv_tool` | A `uv`-managed Python CLI (Typer), ruff-formatted, pytest tests. |
-| `django_drf` | A Django REST Framework API: pytest-django, optional Postgres/Redis/Celery via `docker-compose.yml` (started with the devcontainer's own Docker-in-Docker), JWT or session auth, optional drf-spectacular docs. |
+| `django_drf` | A Django REST Framework API: pytest-django, optional Postgres/Redis/Celery as unprivileged sibling containers via the Dev Containers Docker Compose workflow, JWT or session auth, optional drf-spectacular docs. |
 
 Run `cdforge list-types` to see this list from the CLI, and `cdforge list-skills` for the
 optional Claude Code skills you can add on top of the mandatory ones.
+
+## What the sandbox does and does not guarantee
+
+The generated devcontainer is an unprivileged container whose only writable mount is the
+project workspace (`.devcontainer/` is read-only). From inside it, Claude Code cannot reach
+the host filesystem, the host Docker daemon, or host devices. Two things are worth
+understanding, though:
+
+- **The workspace itself is shared with the host.** Everything under the project folder is
+  the same bytes on the host disk. Files there that the *host* later executes — git hooks
+  under `.git/hooks`, an editor task in `.vscode/`, a `Makefile` you run on the host — run
+  with your privileges, not the container's. Review changes (they are tracked in git) before
+  running project tooling on the host, and prefer working inside the container.
+- **`enable_docker` is an explicit trade-off.** Turning it on re-introduces a privileged
+  container and, with it, host access. Leave it off unless you truly need Claude Code to
+  build and run its own containers.
 
 ## Usage
 

@@ -28,7 +28,14 @@ See [CLAUDE.md](./CLAUDE.md) for the full set of conventions this project follow
 The devcontainer only mounts this project's folder and its own Claude Code config
 directory — nothing else on the host is reachable from inside it. It runs as an ordinary,
 **unprivileged** container: it has no access to the host's block devices, Docker socket, or
-filesystem.
+filesystem. `.devcontainer/` is mounted read-only, so the sandbox definition itself cannot be
+rewritten from inside the container.
+
+One thing to keep in mind: the project folder is the *same files* on the host disk. Anything
+in it that **the host** later runs — git hooks under `.git/hooks`, an editor task in
+`.vscode/`, a script you execute on the host — runs with your privileges, not the
+container's. Prefer working inside the container, and review changes (they are tracked in
+git) before running project tooling directly on the host.
 {% if use_compose %}
 
 Backing services (Postgres/Redis) run as **sibling containers** on a private compose

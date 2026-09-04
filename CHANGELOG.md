@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.5] - 2026-09-05
+
+### Documentation
+
+- Rewrote the sandboxing claims in this project's `README.md`/`CLAUDE.md` and in the
+  generated project's `README.md`/`CLAUDE.md` to describe the real, post-hardening model
+  (unprivileged container, read-only `.devcontainer`, sibling services, opt-in privileged
+  docker) instead of the old "isolated Docker-in-Docker" framing.
+- Added an honest "residual risks" note: the workspace is shared with the host, so files the
+  *host* later executes (git hooks, editor tasks, scripts) run with the user's privileges;
+  and `enable_docker` is an explicit trade-off that re-introduces host access.
+
 ## [0.1.4] - 2026-09-05
 
 ### Security

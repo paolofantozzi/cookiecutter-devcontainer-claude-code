@@ -68,11 +68,30 @@ for the full reasoning if changing them:
   `settings.json` (i.e. **user-scope** settings) by `post-create.sh`, once, only if the
   file doesn't already exist. It cannot be set from the project's own `.claude/settings.json`
   — Claude Code ignores `auto`/`bypassPermissions` there by design.
-- Docker-in-Docker (`ghcr.io/devcontainers/features/docker-in-docker:2`) gives an isolated
-  nested daemon instead of mounting the host's `/var/run/docker.sock`, which would break
-  the "no host access" guarantee.
-- GPU (`runArgs: ["--gpus=all"]`) is scoped to the devcontainer process itself; nested
-  containers started via the isolated Docker-in-Docker daemon do not get GPU passthrough.
+- **The devcontainer is unprivileged by default.** The `docker-in-docker` feature is NOT
+  included unless the user opts in via `enable_docker`, because that feature forces the
+  container to run `--privileged` (it declares `"privileged": true`), which gives in-container
+  code CAP_SYS_ADMIN and direct access to the host's block devices and kernel — a full escape
+  of the "no host access" guarantee. When `enable_docker` is on, the generated README/CLAUDE
+  must keep warning about this.
+- **Backing services are sibling containers, not Docker-in-Docker.** `django_drf` projects
+  that need Postgres/Redis use the Dev Containers Docker Compose workflow (`use_compose`): the
+  devcontainer is the unprivileged `app` service and the databases are siblings on the compose
+  network, reached by hostname (`db`, `redis`). This gives real services without an
+  in-container daemon or privilege. `use_compose` is derived in `context_builder.py`; when it
+  is false the devcontainer uses the plain `build.dockerfile` layout.
+- **`.devcontainer/` is bind-mounted read-only into the container** (over the read-write
+  workspace mount, with `claude-home` re-mounted read-write). This stops in-container code
+  from rewriting `devcontainer.json`/`Dockerfile`/`post-create.sh`, which the host trusts and
+  executes at build/rebuild time (`initializeCommand` runs on the host). Do not remove this
+  without an equivalent protection.
+- **All values interpolated into `devcontainer.json` must be JSON-escaped** (`| tojson`) so a
+  crafted answer (e.g. `project_name`) cannot inject devcontainer keys.
+- The "never push" rule is defended in depth (a `permissions.deny` glob plus a
+  `.githooks/pre-push` hook) but its real basis is that no push credentials are mounted into
+  the container. Keep the docs honest that the deny/hook are best-effort.
+- GPU passthrough is `runArgs: ["--gpus=all"]` in the plain build layout, and a device
+  reservation on the `app` service in the compose layout.
 
 ## Language and style
 
