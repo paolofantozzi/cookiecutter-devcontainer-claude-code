@@ -1,6 +1,10 @@
 FROM {{ base_image }}
 
-RUN apt-get update \
+# The upstream devcontainer base image ships a third-party yarn apt source whose signing
+# key periodically expires, which breaks `apt-get update`. These projects do not use yarn,
+# so remove that source before updating.
+RUN rm -f /etc/apt/sources.list.d/yarn.list \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
 {% for package in extra_apt_packages %}
         {{ package }} \

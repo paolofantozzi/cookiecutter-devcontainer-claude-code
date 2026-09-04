@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.8] - 2026-09-05
+
+### Fixed
+
+- The generated `.devcontainer/Dockerfile` now removes the upstream base image's third-party
+  `yarn` apt source before `apt-get update`. That source's signing key periodically expires
+  (`NO_PUBKEY`), which made `apt-get update` fail with exit code 100 and broke the devcontainer
+  image build for every generated project. These projects don't use yarn, so the source is
+  simply dropped. Verified by building the generated image end-to-end.
+
 ## [0.1.7] - 2026-09-05
 
 ### Added
