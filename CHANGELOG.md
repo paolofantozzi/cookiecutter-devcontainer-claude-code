@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.4] - 2026-09-05
+
+### Security
+
+- Hardened the "no push from the container" guardrail, which previously relied on a single
+  easily-bypassed `permissions.deny` glob. Added a `.githooks/pre-push` hook that refuses
+  pushes, broadened the deny list, and documented in the generated `CLAUDE.md` that these are
+  best-effort layers — the actual guarantee is that no push credentials are mounted into the
+  container, so a human always pushes from the host.
+
 ## [0.1.3] - 2026-09-05
 
 ### Security

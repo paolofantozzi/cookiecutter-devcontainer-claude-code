@@ -27,6 +27,7 @@ def test_expected_files_are_created(tmp_path: Path) -> None:
         '.claude/skills/python-uv-conventions/SKILL.md',
         '.claude/skills/commit-craftsman/SKILL.md',
         '.githooks/pre-commit',
+        '.githooks/pre-push',
         '.gitignore',
         'CLAUDE.md',
         'README.md',

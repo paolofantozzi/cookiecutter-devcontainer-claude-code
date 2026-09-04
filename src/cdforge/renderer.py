@@ -9,7 +9,7 @@ import jinja2
 from cdforge.paths import COMMON_TEMPLATE_DIR
 from cdforge.project_types.base import ProjectType
 
-_EXECUTABLE_NAMES = {'pre-commit', 'post-create.sh'}
+_EXECUTABLE_NAMES = {'pre-commit', 'pre-push', 'post-create.sh'}
 
 
 def build_environment(project_type: ProjectType) -> jinja2.Environment:
