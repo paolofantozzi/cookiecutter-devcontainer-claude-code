@@ -95,5 +95,17 @@ $ uv run ruff format .
 `git config core.hooksPath .githooks` is already set for this repository; the pre-commit
 hook runs the same lint + test gate described above.
 
+To test the generated devcontainers for real (build them and run checks inside the running
+container), use the end-to-end harness:
+
+```console
+$ scripts/e2e.sh --list                       # available variants
+$ scripts/e2e.sh                              # run every host-supported variant
+$ scripts/e2e.sh --only py-default,dj-sqlite  # a subset
+```
+
+It needs Docker, `uv`, and the Dev Containers CLI; the `sysbox` and `gpu` variants are
+skipped automatically when the host lacks the runtime.
+
 See [CLAUDE.md](./CLAUDE.md) for the full architecture and the conventions this project
 follows.

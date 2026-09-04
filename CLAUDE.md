@@ -122,3 +122,10 @@ for the full reasoning if changing them:
   for the Django app-layout project, and Django's `makemigrations` not auto-detecting a
   brand-new unmigrated app unless named explicitly, fixed by shipping a checked-in initial
   migration).
+- `scripts/e2e.sh` automates the full container-level matrix: it scaffolds each variant,
+  runs `devcontainer up`, and checks isolation / read-only `.devcontainer` / `ruff` / `pytest`
+  / the docker/gpu capability *inside the real container*, then tears it down. It needs
+  docker, `uv`, and the Dev Containers CLI; `sysbox` and `gpu` variants are auto-skipped when
+  the host lacks the runtime. Run `scripts/e2e.sh --list` to see variants,
+  `scripts/e2e.sh --only py-default,dj-sqlite` for a subset. This has found real build bugs
+  (the broken yarn apt source; the `uv_build` module-name mismatch).
