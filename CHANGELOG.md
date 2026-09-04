@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.6] - 2026-09-05
+
+### Fixed
+
+- The generated `python_uv_tool` CLI now defines an `@app.callback()`, so `tool version`
+  works. Without it, a single-command Typer app collapses and invoking the command exits
+  with code 2 — the generated project's own `test_version_command_prints_installed_version`
+  test failed. (Found by actually running the generated project, per the workflow note.)
+
 ## [0.1.5] - 2026-09-05
 
 ### Documentation

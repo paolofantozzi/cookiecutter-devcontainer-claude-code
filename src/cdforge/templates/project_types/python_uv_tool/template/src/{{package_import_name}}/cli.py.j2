@@ -5,6 +5,11 @@ from {{ package_import_name }} import __version__
 app = typer.Typer(name='{{ cli_command_name }}', help='{{ project_name }}')
 
 
+@app.callback()
+def main() -> None:
+    """{{ project_name }} command-line interface."""
+
+
 @app.command()
 def version() -> None:
     """Print the installed version."""

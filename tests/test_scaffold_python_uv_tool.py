@@ -131,6 +131,17 @@ def test_gitignore_covers_claude_home(tmp_path: Path) -> None:
     assert '/.devcontainer/claude-home/' in gitignore
 
 
+def test_cli_defines_a_callback_so_subcommands_work(tmp_path: Path) -> None:
+    # Without an @app.callback(), a single-command Typer app collapses and `tool version`
+    # exits with code 2 instead of running the command.
+    project_dir = _scaffold(tmp_path)
+
+    cli = (project_dir / 'src' / 'widget_tool' / 'cli.py').read_text()
+
+    assert '@app.callback()' in cli
+    assert '@app.command()' in cli
+
+
 def test_pyproject_has_required_style_conventions(tmp_path: Path) -> None:
     project_dir = _scaffold(tmp_path)
 
