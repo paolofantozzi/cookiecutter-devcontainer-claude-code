@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-09-05
+
+### Security
+
+- The `.devcontainer/` directory is now bind-mounted **read-only** inside the container, so
+  Claude Code (or anything else running in it) cannot rewrite `devcontainer.json`, the
+  `Dockerfile`, or `post-create.sh`. Those files are executed/trusted by the host's Dev
+  Containers tooling at build/rebuild time; making them un-writable from inside removes the
+  path where in-container code could arrange to run on the host after a rebuild. The
+  `claude-home` config directory stays writable via its own mount.
+
 ## [0.1.2] - 2026-09-05
 
 ### Security

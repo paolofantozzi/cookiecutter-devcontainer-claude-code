@@ -12,6 +12,10 @@ services:
     command: sleep infinity
     volumes:
       - .:/workspaces/{{ project_slug }}:cached
+      # The container that defines the sandbox must not be editable from inside it:
+      # mount .devcontainer read-only so Claude Code cannot rewrite devcontainer.json,
+      # the Dockerfile, or post-create.sh (which the host trusts on rebuild).
+      - ./.devcontainer:/workspaces/{{ project_slug }}/.devcontainer:ro
       - ./.devcontainer/claude-home:/home/{{ remote_user }}/.claude
     environment:
       CLAUDE_CONFIG_DIR: /home/{{ remote_user }}/.claude

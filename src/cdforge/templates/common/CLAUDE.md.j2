@@ -17,6 +17,9 @@ container:
 - Can only see this project's files, plus its own persistent Claude Code config at
   `~/.claude` (bind-mounted from `.devcontainer/claude-home/`, gitignored). It has no access
   to any other part of the host filesystem.
+- Sees `.devcontainer/` as **read-only** (the container that defines the sandbox cannot be
+  rewritten from inside it). To change the devcontainer, Dockerfile, or `post-create.sh`,
+  edit them on the host and rebuild — those edits cannot be made from within the container.
 - Runs as an ordinary, **unprivileged** container: no host block devices, no host Docker
   socket, no host filesystem beyond this workspace.
 {% if use_compose %}

@@ -51,11 +51,26 @@ def test_devcontainer_json_is_valid_and_wired_for_sandboxing(tmp_path: Path) -> 
     assert 'ghcr.io/anthropics/devcontainer-features/claude-code:1.0' in config['features']
     assert config['build'] == {'dockerfile': 'Dockerfile'}
     assert config['mounts'] == [
+        'source=${localWorkspaceFolder}/.devcontainer,'
+        'target=${containerWorkspaceFolder}/.devcontainer,type=bind,readonly',
         'source=${localWorkspaceFolder}/.devcontainer/claude-home,'
-        'target=/home/vscode/.claude,type=bind'
+        'target=/home/vscode/.claude,type=bind',
     ]
     assert config['containerEnv']['CLAUDE_CONFIG_DIR'] == '/home/vscode/.claude'
     assert 'runArgs' not in config
+
+
+def test_devcontainer_dir_is_read_only_inside_container(tmp_path: Path) -> None:
+    # The .devcontainer directory (which defines the sandbox) is mounted read-only so
+    # in-container Claude Code cannot rewrite devcontainer.json/Dockerfile/post-create.sh
+    # and thereby run code on the host at the next rebuild.
+    project_dir = _scaffold(tmp_path)
+    config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
+
+    ro = [m for m in config['mounts'] if m.endswith('.devcontainer,type=bind,readonly')]
+    assert len(ro) == 1
+    # claude-home stays writable via a separate, more specific target path.
+    assert any('target=/home/vscode/.claude,type=bind' in m for m in config['mounts'])
 
 
 def test_enable_docker_opt_in_adds_docker_in_docker(tmp_path: Path) -> None:

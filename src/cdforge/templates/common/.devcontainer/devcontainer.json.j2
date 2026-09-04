@@ -30,6 +30,7 @@
 {% endif %}
 {% if not use_compose %}
   "mounts": [
+    "source=${localWorkspaceFolder}/.devcontainer,target=${containerWorkspaceFolder}/.devcontainer,type=bind,readonly",
     "source=${localWorkspaceFolder}/.devcontainer/claude-home,target=/home/{{ remote_user }}/.claude,type=bind"
   ],
 {% endif %}
