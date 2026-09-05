@@ -80,7 +80,13 @@ for the full reasoning if changing them:
   - `privileged`: the `docker-in-docker` feature, which declares `"privileged": true` and so
     forces the container to run `--privileged` — giving in-container code CAP_SYS_ADMIN and
     direct host block-device/kernel access, a full escape of the "no host access" guarantee.
-    The generated README/CLAUDE must keep warning about this.
+    The generated README/CLAUDE must keep warning about this. Its daemon is started from
+    `.devcontainer/docker-start.sh` (postStartCommand), *not* from the feature's container
+    entrypoint: using that entrypoint requires `"overrideCommand": false`, which hands the
+    container's lifetime to the base image's `CMD` (`python3`) and kills it seconds after
+    start. The script also switches Debian's iptables alternative to `iptables-nft` when the
+    legacy backend cannot create the `nat` table, which is what dockerd needs on hosts whose
+    kernel only has the nftables backend.
 - **Backing services are sibling containers, not Docker-in-Docker.** `django_drf` projects
   that need Postgres/Redis use the Dev Containers Docker Compose workflow (`use_compose`): the
   devcontainer is the unprivileged `app` service and the databases are siblings on the compose

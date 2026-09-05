@@ -1,27 +1,56 @@
-{% if docker_mode == 'sysbox' %}
+{% if docker_mode in ('sysbox', 'privileged') %}
 #!/usr/bin/env bash
 set -euo pipefail
 
+{% if docker_mode == 'sysbox' %}
 # Sysbox mode: a full Docker daemon runs INSIDE this devcontainer, isolated by the sysbox
 # runtime (user-namespaced). The container is NOT privileged and has no access to the host
 # kernel, devices, Docker daemon, or filesystem — Claude Code can build and run its own
 # containers here without any of that reaching the host.
+{% else %}
+# Privileged mode: the docker-in-docker feature installs Docker, but its daemon is started
+# from here rather than from the feature's container entrypoint. Relying on that entrypoint
+# would require "overrideCommand": false, which replaces the Dev Containers CLI's keep-alive
+# command with the base image's CMD (`python3`) — that exits immediately and takes the whole
+# container with it. Starting the daemon from postStartCommand keeps the container alive and
+# still runs the feature's own init script, so cgroup nesting and DNS are set up as upstream
+# intends.
+{% endif %}
 #
 # This script is idempotent and runs on every container start (postStartCommand). It also
 # runs once from post-create.sh so Docker is ready right after the first build.
 
+{% if docker_mode == 'sysbox' %}
 if ! command -v docker >/dev/null 2>&1; then
   # Install Docker just as you would on a normal host/VM (sysbox makes this work unprivileged).
   curl -fsSL https://get.docker.com | sudo sh
 fi
+{% else %}
+# Debian selects the legacy iptables backend (the docker-in-docker feature pins it), which
+# cannot create the `nat` table on hosts whose kernel only provides the nftables backend —
+# dockerd then dies with "can't initialize iptables table `nat'". Switch to iptables-nft when
+# the legacy backend is unusable.
+if ! sudo iptables -t nat -L >/dev/null 2>&1; then
+  sudo update-alternatives --set iptables /usr/sbin/iptables-nft >/dev/null 2>&1 || true
+  sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-nft >/dev/null 2>&1 || true
+fi
+{% endif %}
 
 sudo groupadd -f docker
 sudo usermod -aG docker "$(id -un)" || true
 
+{% if docker_mode == 'sysbox' %}
 # The base image has no systemd, so start dockerd directly if it is not already running.
 if ! pgrep -x dockerd >/dev/null 2>&1; then
   sudo sh -c 'nohup dockerd >/var/log/dockerd.log 2>&1 &'
 fi
+{% else %}
+# The feature's init script starts dockerd with the right cgroup/DNS setup. Called with no
+# arguments its trailing `exec "$@"` is a no-op, so it returns once the daemon is up.
+if ! pgrep -x dockerd >/dev/null 2>&1; then
+  /usr/local/share/docker-init.sh
+fi
+{% endif %}
 
 # Wait for the daemon socket, then make it usable by the non-root user for this session.
 for _ in $(seq 1 20); do

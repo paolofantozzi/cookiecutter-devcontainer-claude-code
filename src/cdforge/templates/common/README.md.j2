@@ -64,4 +64,7 @@ Docker Desktop. The daemon is started by `.devcontainer/docker-start.sh` on cont
 > run **`--privileged`**, which gives processes inside it access to the host's kernel and
 > block devices — it **voids the host-isolation guarantee above**. Prefer the Sysbox mode if
 > your host supports it; otherwise only keep this if you accept the trade-off.
+>
+> The daemon is started by `.devcontainer/docker-start.sh` on container start; run that
+> script by hand if `docker` is not responding.
 {% endif %}

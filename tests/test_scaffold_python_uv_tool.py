@@ -84,9 +84,15 @@ def test_enable_docker_opt_in_adds_docker_in_docker(tmp_path: Path) -> None:
     config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
 
     assert 'ghcr.io/devcontainers/features/docker-in-docker:2' in config['features']
-    # docker-in-docker's entrypoint (which starts dockerd) only runs when the dev container
-    # command is not overridden.
-    assert config['overrideCommand'] is False
+    # dockerd is started from postStartCommand, not from the feature's container entrypoint:
+    # that entrypoint would need "overrideCommand": false, which lets the base image's CMD
+    # end the container as soon as it exits.
+    assert 'overrideCommand' not in config
+    assert config['postStartCommand'] == 'bash .devcontainer/docker-start.sh'
+    start = (project_dir / '.devcontainer' / 'docker-start.sh').read_text()
+    # The legacy iptables backend cannot create the `nat` table on nftables-only hosts.
+    assert 'iptables-nft' in start
+    assert '/usr/local/share/docker-init.sh' in start
     # The generated docs must warn that this re-introduces host access.
     assert 'privileged' in (project_dir / 'README.md').read_text()
 

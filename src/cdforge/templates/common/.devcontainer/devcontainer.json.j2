@@ -22,9 +22,6 @@
     ,"{{ feature_id }}": {{ feature_opts | tojson }}
 {% endfor %}
   },
-{% if enable_docker and not use_compose %}
-  "overrideCommand": false,
-{% endif %}
 {% if gpu_enabled and not use_compose %}
   "hostRequirements": {
     "gpu": "optional"
@@ -33,7 +30,7 @@
 {% if run_args %}
   "runArgs": {{ run_args | tojson }},
 {% endif %}
-{% if docker_mode == 'sysbox' %}
+{% if docker_mode in ('sysbox', 'privileged') %}
   "postStartCommand": "bash .devcontainer/docker-start.sh",
 {% endif %}
 {% if not use_compose %}

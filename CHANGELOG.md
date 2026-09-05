@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.11] - 2026-09-05
+
+### Fixed
+
+- Privileged `docker-in-docker` mode now actually works. Two problems, both found by
+  `scripts/e2e.sh` on a real host:
+  - `"overrideCommand": false` (added in 0.1.10 so the feature's entrypoint could start
+    `dockerd`) also hands the container's lifetime to the base image's `CMD` (`python3`),
+    which exits immediately — the devcontainer stopped seconds after starting. The setting is
+    gone; `dockerd` is now started from `postStartCommand` via `.devcontainer/docker-start.sh`,
+    which calls the feature's own `docker-init.sh` (so cgroup nesting and DNS are still set up
+    upstream's way) and keeps the CLI's keep-alive command.
+  - The docker-in-docker feature pins Debian's iptables alternative to the *legacy* backend,
+    which cannot create the `nat` table on hosts whose kernel only provides nftables; `dockerd`
+    died with ``can't initialize iptables table `nat'``. The start script now switches to
+    `iptables-nft` when the legacy backend is unusable.
+
+  `docker-start.sh` is therefore generated for both the `sysbox` and `privileged` modes.
+
 ## [0.1.10] - 2026-09-05
 
 ### Fixed

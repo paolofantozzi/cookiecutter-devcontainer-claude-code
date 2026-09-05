@@ -37,7 +37,8 @@ container:
 - Has in-container Docker (Docker-in-Docker) enabled. NOTE: this makes the container run
   `--privileged`, which grants access to the host kernel and block devices and therefore
   breaks the host-isolation guarantee above. Treat host resources as reachable when this is
-  on.
+  on. The daemon is started by `.devcontainer/docker-start.sh`; if `docker` is not
+  responding after a restart, run `bash .devcontainer/docker-start.sh`.
 {% endif %}
 {% if gpu_enabled %}
 - Has GPU access for processes running directly inside the devcontainer

@@ -9,6 +9,10 @@ chmod +x .githooks/pre-commit 2>/dev/null || true
 
 # Sysbox: bring up the in-container Docker daemon (isolated, unprivileged, no host access).
 bash .devcontainer/docker-start.sh
+{% elif docker_mode == 'privileged' %}
+
+# Privileged: bring up the in-container Docker daemon (see the warnings in README.md).
+bash .devcontainer/docker-start.sh
 {% endif %}
 
 if [ ! -f "${CLAUDE_CONFIG_DIR}/settings.json" ]; then
