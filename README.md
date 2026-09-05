@@ -83,6 +83,41 @@ For scripted/non-interactive use:
 $ cdforge new --answers-file answers.json --output-dir my-project --non-interactive
 ```
 
+## Adopting an existing project
+
+`cdforge adopt` brings a project that already exists in line with what `cdforge new`
+generates — same sandboxed devcontainer, same hooks, same Claude Code setup — without
+touching its source code:
+
+```console
+$ cd my-existing-project
+$ cdforge adopt --dry-run   # show exactly what would change
+$ cdforge adopt             # apply it
+```
+
+It answers the same questions as `new`, pre-filled with what it can detect in the project
+(type, package/Django layout, dependencies, author, git remote, existing devcontainer
+settings); `--non-interactive` accepts the detected answers as-is. What it does with each
+file:
+
+| Files | What happens |
+| --- | --- |
+| `.devcontainer/`, `.githooks/`, `.claude/skills/` | **Managed** — (re)written to exactly what cdforge generates. |
+| `.gitignore`, `.claude/settings.json` | **Merged** — cdforge's entries are added, yours are kept. |
+| `README.md`, `CLAUDE.md`, `CHANGELOG.md`, `LICENSE`, `docker-compose.yml`, `.env.example` | Created only if missing; otherwise reported as a conflict and left alone (`--write-suggestions` drops the generated version next to it as `<name>.cdforge-new`). |
+| Everything else (`src/`, `apps/`, `pyproject.toml`, tests, ...) | Never written. |
+
+For a compose-based project (Django with Postgres/Redis) that already has its own
+`docker-compose.yml`, the devcontainer's services are written to
+`.devcontainer/docker-compose.cdforge.yml` and `devcontainer.json` loads both files, so your
+services stay untouched and the devcontainer's `app` service is merged on top.
+
+The answers are recorded in `.cdforge.json`, so a later `cdforge adopt` reuses them without
+asking (`--reconfigure` to change them). That also makes it the **upgrade path for generated
+projects**: after upgrading cdforge, re-run `cdforge adopt` in a project to pull in newer
+devcontainer fixes. Adoption refuses to run over uncommitted changes (`--force` to override),
+so the rewrite is always reviewable with `git diff`.
+
 ## Developing cdforge itself
 
 ```console

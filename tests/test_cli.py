@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 from cdforge.cli import app
 
 FIXTURE = Path(__file__).parent / 'fixtures' / 'answers_python_uv_tool.json'
+DJANGO_FIXTURE = Path(__file__).parent / 'fixtures' / 'answers_django_drf.json'
 
 runner = CliRunner()
 
@@ -48,3 +49,30 @@ def test_version_flag_prints_a_version() -> None:
 
     assert result.exit_code == 0
     assert result.output.strip()
+
+
+def test_adopt_on_a_freshly_scaffolded_project_finds_nothing_to_change(tmp_path: Path) -> None:
+    output_dir = tmp_path / 'widget-tool'
+    runner.invoke(app, ['new', '--answers-file', str(FIXTURE), '--output-dir', str(output_dir)])
+
+    result = runner.invoke(app, ['adopt', str(output_dir), '--dry-run'])
+
+    assert result.exit_code == 0, result.output
+    assert 'already aligned' in result.output
+    assert 'conflict' not in result.output
+
+
+def test_adopt_on_a_freshly_scaffolded_compose_project_finds_nothing_to_change(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / 'notes-api'
+    runner.invoke(
+        app, ['new', '--answers-file', str(DJANGO_FIXTURE), '--output-dir', str(output_dir)]
+    )
+
+    result = runner.invoke(app, ['adopt', str(output_dir), '--dry-run'])
+
+    assert result.exit_code == 0, result.output
+    assert 'already aligned' in result.output
+    # The generated root docker-compose.yml is recognised as ours, not shadowed by an override.
+    assert 'docker-compose.cdforge.yml' not in result.output

@@ -22,6 +22,37 @@ def host_git_user_email() -> str:
     return _git_config('user.email') or 'you@example.com'
 
 
+def is_git_repository(project_dir: Path) -> bool:
+    return (project_dir / '.git').exists()
+
+
+def configure_hooks_path(project_dir: Path) -> None:
+    """Point the repository at .githooks so the generated pre-commit/pre-push hooks
+    actually run (git only looks at .git/hooks by default)."""
+    subprocess.run(
+        ['git', 'config', 'core.hooksPath', '.githooks'],
+        cwd=project_dir,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def tracked_changes(project_dir: Path) -> list[str]:
+    """Paths of tracked files with uncommitted modifications (untracked files are
+    ignored: they are not at risk from a rewrite)."""
+    result = subprocess.run(
+        ['git', 'status', '--porcelain', '--untracked-files=no'],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    return [line[3:] for line in result.stdout.splitlines() if line.strip()]
+
+
 def init_repository(
     project_dir: Path,
     remote_url: str,

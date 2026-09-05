@@ -5,6 +5,41 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.12] - 2026-09-05
+
+### Added
+
+- New `cdforge adopt [PROJECT_DIR]` command: aligns an **existing** project with what
+  `cdforge new` generates. It asks the same questions pre-filled with what it detects in the
+  project (type, package/Django layout, dependencies, author, git remote, current
+  devcontainer settings — `--non-interactive` just takes the detected answers), then:
+  - (re)writes the managed sandbox files `.devcontainer/`, `.githooks/`, `.claude/skills/`;
+  - merges cdforge's entries into `.gitignore` and `.claude/settings.json`, keeping the
+    project's own;
+  - creates `README.md`/`CLAUDE.md`/`CHANGELOG.md`/`LICENSE`/`docker-compose.yml`/
+    `.env.example` only when missing, reporting the rest as conflicts to merge by hand
+    (`--write-suggestions` writes the generated version as `<name>.cdforge-new`);
+  - never writes application code (`src/`, `apps/`, `pyproject.toml`, tests).
+
+  Adopting a compose-based project that already has its own `docker-compose.yml` writes the
+  devcontainer's services to `.devcontainer/docker-compose.cdforge.yml` instead of the root
+  file, and `devcontainer.json` now accepts a list of compose files, so the project's
+  services survive and the `app` service is merged on top of them.
+
+  `--dry-run` prints the plan and writes nothing, and adoption refuses to run over
+  uncommitted tracked changes (`--force` overrides) so the result is reviewable with
+  `git diff`.
+- Generated and adopted projects now carry a `.cdforge.json` manifest recording the answers
+  they were built from. `cdforge adopt` reuses it without asking (`--reconfigure` to change
+  the answers), which makes re-running it the supported **upgrade path**: after upgrading
+  cdforge, adopt a generated project to pull in newer devcontainer fixes. Adoption is
+  idempotent — a freshly scaffolded project reports "already aligned".
+- The generated `README.md` and `CLAUDE.md` now document which files are cdforge-managed
+  (and therefore re-rendered by `cdforge adopt`) versus owned by the project.
+- `scripts/e2e.sh` gained `py-adopt` and `dj-adopt` variants, which strip a generated project
+  of everything cdforge manages (replacing the compose file with one of the project's own) and
+  then adopt it, so the adopted devcontainer is built and checked like any other variant.
+
 ## [0.1.11] - 2026-09-05
 
 ### Fixed

@@ -1,7 +1,11 @@
 {
   "name": {{ project_name | tojson }},
 {% if use_compose %}
-  "dockerComposeFile": "../docker-compose.yml",
+{% if compose_files | length == 1 %}
+  "dockerComposeFile": {{ compose_files[0] | tojson }},
+{% else %}
+  "dockerComposeFile": {{ compose_files | tojson }},
+{% endif %}
   "service": "app",
   "workspaceFolder": "/workspaces/{{ project_slug }}",
 {% else %}

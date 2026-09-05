@@ -12,36 +12,61 @@ from cdforge.project_types.registry import PROJECT_TYPES
 from cdforge.skills_catalog import skills_for_type
 
 
-def _ask_question(question: Question) -> Any:
-    default = question.resolve_default()
+def _ask_question(question: Question, default: Any = None) -> Any:
+    resolved = question.resolve_default() if default is None else default
     if question.kind == 'confirm':
-        return questionary.confirm(question.prompt, default=bool(default)).ask()
+        return questionary.confirm(question.prompt, default=bool(resolved)).ask()
     if question.kind == 'select':
-        return questionary.select(question.prompt, choices=question.choices, default=default).ask()
-    return questionary.text(question.prompt, default=str(default or '')).ask()
+        choice = resolved if resolved in question.choices else question.resolve_default()
+        return questionary.select(question.prompt, choices=question.choices, default=choice).ask()
+    return questionary.text(question.prompt, default=str(resolved or '')).ask()
 
 
-def run_wizard() -> tuple[dict[str, Any], Path]:
+def run_wizard(
+    defaults: dict[str, Any] | None = None,
+    *,
+    ask_output_dir: bool = True,
+) -> tuple[dict[str, Any], Path | None]:
+    """Ask the common questions plus the chosen type's own ones.
+
+    `defaults` pre-fills every prompt, which is how `cdforge adopt` offers what it
+    detected in an existing project; `ask_output_dir` is False when the target
+    directory is already known (adoption).
+    """
+    defaults = defaults or {}
     answers: dict[str, Any] = {}
 
-    answers['project_name'] = questionary.text('Project name').ask()
-    default_dir = slugify(answers['project_name'])
-    output_dir = questionary.text('Output directory', default=default_dir).ask()
+    answers['project_name'] = questionary.text(
+        'Project name', default=str(defaults.get('project_name', ''))
+    ).ask()
+    output_dir: Path | None = None
+    if ask_output_dir:
+        output_dir = Path(
+            questionary.text('Output directory', default=slugify(answers['project_name'])).ask()
+        )
     answers['git_remote_url'] = questionary.text(
-        'Git remote URL (leave blank if it does not exist yet)', default=''
+        'Git remote URL (leave blank if it does not exist yet)',
+        default=str(defaults.get('git_remote_url', '')),
     ).ask()
 
+    type_choices = [
+        questionary.Choice(title=pt.label, value=pt.id) for pt in PROJECT_TYPES.values()
+    ]
+    default_type = defaults.get('project_type')
     type_choice = questionary.select(
         'Project type',
-        choices=[questionary.Choice(title=pt.label, value=pt.id) for pt in PROJECT_TYPES.values()],
+        choices=type_choices,
+        default=default_type if default_type in PROJECT_TYPES else None,
     ).ask()
     answers['project_type'] = type_choice
     project_type: ProjectType = PROJECT_TYPES[type_choice]
 
     answers['gpu_enabled'] = questionary.confirm(
-        'Make the GPU available inside the devcontainer?', default=False
+        'Make the GPU available inside the devcontainer?',
+        default=bool(defaults.get('gpu_enabled', False)),
     ).ask()
 
+    docker_default = defaults.get('docker_mode', 'none')
     answers['docker_mode'] = questionary.select(
         'In-container Docker for Claude Code (build/run/Testcontainers)?',
         choices=[
@@ -56,15 +81,20 @@ def run_wizard() -> tuple[dict[str, Any], Path]:
                 value='privileged',
             ),
         ],
-        default='none',
+        default=docker_default if docker_default in ('none', 'sysbox', 'privileged') else 'none',
     ).ask()
 
     catalog = skills_for_type(project_type.id)
     if catalog:
+        preselected = set(defaults.get('optional_skills', []) or [])
         chosen = questionary.checkbox(
             'Optional Claude Code skills to include',
             choices=[
-                questionary.Choice(title=f'{s.label} — {s.description}', value=s.id)
+                questionary.Choice(
+                    title=f'{s.label} — {s.description}',
+                    value=s.id,
+                    checked=s.id in preselected,
+                )
                 for s in catalog
             ],
         ).ask()
@@ -73,6 +103,6 @@ def run_wizard() -> tuple[dict[str, Any], Path]:
         answers['optional_skills'] = []
 
     for question in project_type.questions:
-        answers[question.key] = _ask_question(question)
+        answers[question.key] = _ask_question(question, defaults.get(question.key))
 
-    return answers, Path(output_dir)
+    return answers, output_dir

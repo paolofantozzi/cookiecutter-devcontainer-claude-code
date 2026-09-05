@@ -7,6 +7,7 @@ from typing import Any
 from cdforge.answers import validate_common_answers
 from cdforge.context_builder import build_context
 from cdforge.git_ops import init_repository
+from cdforge.manifest import write_manifest
 from cdforge.project_types.registry import get_project_type
 from cdforge.renderer import render_project
 from cdforge.skills_catalog import get_optional_skill
@@ -52,6 +53,8 @@ def scaffold_project(
     claude_home = output_dir / '.devcontainer' / 'claude-home'
     claude_home.mkdir(parents=True, exist_ok=True)
     (claude_home / '.gitkeep').write_text('', encoding='utf-8')
+
+    write_manifest(output_dir, answers)
 
     _format_python_files(output_dir)
 

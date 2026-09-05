@@ -1,0 +1,66 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    command: sleep infinity
+{% if docker_mode == 'sysbox' %}
+    # Full Docker inside the devcontainer, isolated by sysbox (unprivileged, no host access).
+    runtime: sysbox-runc
+{% endif %}
+{% if docker_mode == 'privileged' %}
+    # WARNING: privileged re-introduces host kernel/device access (voids host isolation).
+    privileged: true
+{% endif %}
+    volumes:
+      - .:/workspaces/{{ project_slug }}:cached
+      # The container that defines the sandbox must not be editable from inside it:
+      # mount .devcontainer read-only so Claude Code cannot rewrite devcontainer.json,
+      # the Dockerfile, or post-create.sh (which the host trusts on rebuild).
+      - ./.devcontainer:/workspaces/{{ project_slug }}/.devcontainer:ro
+      - ./.devcontainer/claude-home:/home/{{ remote_user }}/.claude
+    environment:
+      CLAUDE_CONFIG_DIR: /home/{{ remote_user }}/.claude
+{% if database == 'postgres' or include_celery %}
+    depends_on:
+{% if database == 'postgres' %}
+      - db
+{% endif %}
+{% if include_celery %}
+      - redis
+{% endif %}
+{% endif %}
+{% if gpu_enabled %}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+{% endif %}
+{% if database == 'postgres' %}
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: {{ project_slug.replace('-', '_') }}
+      POSTGRES_USER: {{ project_slug.replace('-', '_') }}
+      POSTGRES_PASSWORD: devpassword
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+{% endif %}
+{% if include_celery %}
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+{% endif %}
+{% if database == 'postgres' %}
+
+volumes:
+  db-data:
+{% endif %}

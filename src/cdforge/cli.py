@@ -6,8 +6,22 @@ from typing import Annotated
 import typer
 
 from cdforge import __version__
+from cdforge.adopt import CONFLICT
+from cdforge.adopt import SUGGESTION_SUFFIX
+from cdforge.adopt import UNCHANGED
+from cdforge.adopt import AdoptError
+from cdforge.adopt import AlignmentPlan
+from cdforge.adopt import apply_alignment
+from cdforge.adopt import dirty_tracked_files
+from cdforge.adopt import plan_alignment
 from cdforge.answers import AnswersError
 from cdforge.answers import load_answers_file
+from cdforge.detect import detect_answers
+from cdforge.detect import detect_git_remote
+from cdforge.detect import detect_optional_skills
+from cdforge.manifest import MANIFEST_NAME
+from cdforge.manifest import ManifestError
+from cdforge.manifest import read_manifest_answers
 from cdforge.project_types.registry import PROJECT_TYPES
 from cdforge.scaffold import ScaffoldError
 from cdforge.scaffold import scaffold_project
@@ -69,7 +83,7 @@ def new(
         raise typer.Exit(code=1)
     else:
         answers, wizard_output_dir = run_wizard()
-        resolved_output = output_dir or wizard_output_dir
+        resolved_output = output_dir or wizard_output_dir or Path(answers['project_name'])
 
     try:
         project_dir = scaffold_project(answers, resolved_output, force=force)
@@ -82,6 +96,150 @@ def new(
     typer.echo(f'  1. code {project_dir}')
     typer.echo('  2. Command Palette -> "Dev Containers: Reopen in Container"')
     typer.echo('  3. Open a terminal in the container and run `claude` to sign in once')
+
+
+_ACTION_COLORS = {
+    'create': typer.colors.GREEN,
+    'update': typer.colors.YELLOW,
+    'merge': typer.colors.CYAN,
+    'conflict': typer.colors.RED,
+}
+
+
+def _detected_answers(project_dir: Path) -> dict:
+    answers = detect_answers(project_dir)
+    answers['git_remote_url'] = detect_git_remote(project_dir)
+    answers['optional_skills'] = detect_optional_skills(project_dir)
+    return answers
+
+
+def _print_plan(plan: AlignmentPlan) -> None:
+    typer.echo(f'Alignment plan for {plan.project_dir} ({plan.project_type_id}):')
+    for change in plan.changes:
+        if change.action == UNCHANGED:
+            continue
+        color = _ACTION_COLORS[change.action]
+        suffix = ' (exists and differs — left untouched)' if change.action == CONFLICT else ''
+        typer.secho(f'  {change.action:<9}{change.relative_path}{suffix}', fg=color)
+    unchanged = len(plan.by_action(UNCHANGED))
+    if unchanged:
+        typer.echo(f'  unchanged {unchanged} file(s) already aligned')
+    if not plan.writes and not plan.conflicts:
+        typer.echo('  nothing to do — this project is already aligned')
+
+
+@app.command()
+def adopt(
+    project_dir: Annotated[
+        Path,
+        typer.Argument(help='Existing project directory to align (default: current directory).'),
+    ] = Path('.'),
+    answers_file: Annotated[
+        Path | None,
+        typer.Option('--answers-file', help='JSON file with pre-filled answers.'),
+    ] = None,
+    non_interactive: Annotated[
+        bool,
+        typer.Option('--non-interactive', help='Never prompt; use detected/recorded answers.'),
+    ] = False,
+    reconfigure: Annotated[
+        bool,
+        typer.Option(
+            '--reconfigure', help=f'Re-ask the questions instead of reusing {MANIFEST_NAME}.'
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option('--dry-run', help='Show what would change and write nothing.'),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option('--force', help='Proceed even with uncommitted changes in the project.'),
+    ] = False,
+    write_suggestions: Annotated[
+        bool,
+        typer.Option(
+            '--write-suggestions',
+            help='For conflicting files, write the generated version as '
+            f'<name>{SUGGESTION_SUFFIX}.',
+        ),
+    ] = False,
+) -> None:
+    """Align an existing project with what `cdforge new` generates.
+
+    Rewrites the managed sandbox files (.devcontainer/, .githooks/, .claude/), merges
+    cdforge's entries into .gitignore and .claude/settings.json, creates the documents it
+    ships only when they are missing, and never touches application source code. Re-run it
+    after upgrading cdforge to pull newer devcontainer fixes into the project.
+    """
+    project_dir = project_dir.resolve()
+    if not project_dir.is_dir():
+        typer.secho(f'{project_dir} is not an existing directory', fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    try:
+        if answers_file is not None:
+            answers = load_answers_file(answers_file)
+        else:
+            recorded = None if reconfigure else read_manifest_answers(project_dir)
+            if recorded is not None:
+                answers = recorded
+                typer.echo(f'Reusing the answers recorded in {MANIFEST_NAME}.')
+            elif non_interactive:
+                answers = _detected_answers(project_dir)
+                typer.echo(f'Detected project type: {answers["project_type"]}')
+            else:
+                answers, _ = run_wizard(_detected_answers(project_dir), ask_output_dir=False)
+    except (AnswersError, ManifestError) as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    dirty = dirty_tracked_files(project_dir)
+    if dirty and not force and not dry_run:
+        typer.secho(
+            'This project has uncommitted changes; commit or stash them first so the '
+            'rewritten files can be reviewed with `git diff` (or pass --force):',
+            fg=typer.colors.RED,
+        )
+        for path in dirty[:10]:
+            typer.echo(f'  {path}')
+        raise typer.Exit(code=1)
+
+    try:
+        plan = plan_alignment(answers, project_dir)
+    except (AdoptError, AnswersError, ValueError) as exc:
+        typer.secho(str(exc), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    _print_plan(plan)
+
+    if dry_run:
+        typer.secho('Dry run: nothing was written.', fg=typer.colors.BLUE)
+        return
+
+    apply_alignment(plan, answers, write_suggestions=write_suggestions)
+    typer.secho(
+        f'Aligned {project_dir} with cdforge {__version__} ({len(plan.writes)} file(s) written).',
+        fg=typer.colors.GREEN,
+    )
+
+    if plan.conflicts:
+        typer.secho(
+            'These files already existed and were left untouched; merge them by hand:',
+            fg=typer.colors.YELLOW,
+        )
+        for change in plan.conflicts:
+            hint = f' -> {change.relative_path}{SUGGESTION_SUFFIX}' if write_suggestions else ''
+            typer.echo(f'  {change.relative_path}{hint}')
+        if not write_suggestions:
+            typer.echo('  (re-run with --write-suggestions to get the generated version alongside)')
+
+    for note in plan.notes:
+        typer.secho(f'Note: {note}', fg=typer.colors.YELLOW)
+
+    typer.echo('Next steps:')
+    typer.echo('  1. git diff   # review the rewritten files')
+    typer.echo('  2. Command Palette -> "Dev Containers: Reopen in Container"')
 
 
 @app.command('list-types')

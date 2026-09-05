@@ -23,6 +23,15 @@ Code.
 See [CLAUDE.md](./CLAUDE.md) for the full set of conventions this project follows
 (code style, versioning, commit and test discipline).
 
+## Keeping the devcontainer up to date
+
+`.cdforge.json` records the answers this project was generated from. Running
+`cdforge adopt` **on the host** (not inside the container — `.devcontainer/` is read-only
+there) re-renders the managed files — `.devcontainer/`, `.githooks/`, `.claude/` — from the
+installed version of cdforge, merges its entries into `.gitignore` and
+`.claude/settings.json`, and never touches this project's own source code or documents.
+Use `cdforge adopt --dry-run` to see what would change first.
+
 ## Sandboxing
 
 The devcontainer only mounts this project's folder and its own Claude Code config

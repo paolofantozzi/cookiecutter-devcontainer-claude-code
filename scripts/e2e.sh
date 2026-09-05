@@ -44,7 +44,12 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# All known variants: "name|project_type|extra answer keys as k=v (space separated)".
+# All known variants:
+#   "name|project_type|extra answer keys as k=v (space separated)|scaffold mode"
+# Scaffold mode is empty for `cdforge new`, or `adopt` to check the adoption path: the
+# project is generated, its cdforge-managed files are then deleted (and, for a compose
+# project, its docker-compose.yml is replaced by one of the project's own) to look like a
+# project that predates cdforge, and `cdforge adopt` has to make it work again.
 VARIANTS=(
   "py-default|python_uv_tool|"
   "py-privileged|python_uv_tool|docker_mode=privileged"
@@ -53,6 +58,8 @@ VARIANTS=(
   "dj-sqlite|django_drf|database=sqlite include_celery=false"
   "dj-postgres-celery|django_drf|database=postgres include_celery=true"
   "dj-privileged|django_drf|database=postgres include_celery=true docker_mode=privileged"
+  "py-adopt|python_uv_tool||adopt"
+  "dj-adopt|django_drf|database=postgres include_celery=false|adopt"
 )
 
 if [ "${LIST_ONLY:-0}" = 1 ]; then
@@ -159,10 +166,11 @@ EOS
 
 run_variant() {
   local spec="$1"
-  local name ptype extras
+  local name ptype extras smode
   name="$(echo "$spec" | cut -d'|' -f1)"
   ptype="$(echo "$spec" | cut -d'|' -f2)"
   extras="$(echo "$spec" | cut -d'|' -f3)"
+  smode="$(echo "$spec" | cut -d'|' -f4)"
 
   # capability gating
   case "$extras" in
@@ -177,12 +185,27 @@ run_variant() {
 
   local proj="$WORK_DIR/$name"
   local ans="$WORK_DIR/$name.json"
-  echo "==================== $name ($ptype, docker=$mode, gpu=$gpu) ===================="
+  echo "==================== $name ($ptype, docker=$mode, gpu=$gpu, scaffold=${smode:-new}) ===================="
   rm -rf "$proj"
   write_answers "$ans" "$name" "$ptype" "$extras"
 
   ( cd "$REPO_ROOT" && uv run cdforge new --answers-file "$ans" --output-dir "$proj" --non-interactive ) >/dev/null 2>&1 \
     || { echo "  scaffold FAILED"; RESULTS+=("FAIL  $name (scaffold)"); return; }
+  if [ "$smode" = "adopt" ]; then
+    # Make the generated project look like one that predates cdforge: drop everything the
+    # tool manages, and give a compose project a docker-compose.yml of its own so adoption
+    # has to add the devcontainer services as an override instead of overwriting it.
+    rm -rf "$proj/.devcontainer" "$proj/.claude" "$proj/.githooks" "$proj/.cdforge.json"
+    if [ -f "$proj/docker-compose.yml" ]; then
+      printf 'services:\n  legacy:\n    image: alpine:3.20\n    command: sleep infinity\n' \
+        > "$proj/docker-compose.yml"
+    fi
+    ( cd "$REPO_ROOT" && uv run cdforge adopt "$proj" --answers-file "$ans" --force ) \
+      || { echo "  adopt FAILED"; RESULTS+=("FAIL  $name (adopt)"); return; }
+    if [ -f "$proj/.devcontainer/docker-compose.cdforge.yml" ]; then
+      echo "  (adopted with a compose override)"
+    fi
+  fi
   mkdir -p "$proj/.devcontainer/claude-home"
 
   local uplog="$WORK_DIR/$name.up.log"

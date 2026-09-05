@@ -12,9 +12,10 @@ rationale documented in the templates themselves.
 
 ## Architecture
 
-- `src/cdforge/cli.py` — Typer app (`new`, `list-types`, `list-skills`).
+- `src/cdforge/cli.py` — Typer app (`new`, `adopt`, `list-types`, `list-skills`).
 - `src/cdforge/wizard.py` — interactive prompts (questionary) for the common + per-type
-  questions.
+  questions; `defaults=` pre-fills every prompt (used by `adopt`) and `ask_output_dir=False`
+  skips the output-directory question when the target already exists.
 - `src/cdforge/answers.py` — loads/validates a JSON answers file (`--answers-file`, used by
   both scripted runs and the test suite).
 - `src/cdforge/context_builder.py` — merges answers with each project type's derived
@@ -25,8 +26,14 @@ rationale documented in the templates themselves.
   `celery.py`; every file that must always exist has non-blank content even in its "off"
   branch, e.g. a leading docstring).
 - `src/cdforge/scaffold.py` — orchestrates a full scaffold: render, create the
-  `.devcontainer/claude-home/` placeholder, best-effort `ruff format` the output so the
-  initial commit is already canonically formatted, then `git init` + commit.
+  `.devcontainer/claude-home/` placeholder, write `.cdforge.json`, best-effort `ruff format`
+  the output so the initial commit is already canonically formatted, then `git init` +
+  commit.
+- `src/cdforge/adopt.py` — aligns an **existing** project with the template (see below).
+- `src/cdforge/detect.py` — best-effort inference of the answers for an existing project
+  (project type, package/Django layout, dependencies, author, current devcontainer settings).
+- `src/cdforge/manifest.py` — reads/writes `.cdforge.json`, the record of the answers a
+  project was generated or aligned from.
 - `src/cdforge/project_types/` — one module per project type (`base.py` defines the
   `ProjectType`/`Question` dataclasses and the registry). Adding a new project type means
   adding a module here plus a `templates/project_types/<id>/` tree.
@@ -37,6 +44,42 @@ rationale documented in the templates themselves.
 - `src/cdforge/templates/` — the actual template trees; see the `common/` vs
   `project_types/<id>/template/` split below.
 
+## Adoption of existing projects (`cdforge adopt`)
+
+`adopt` renders a full project into a temporary directory (reusing `render_project`, so
+there is exactly one rendering path) and then applies each rendered file to the target
+according to `adopt.classify()`:
+
+- **managed** (`.devcontainer/`, `.githooks/`, `.claude/`) — overwritten; these *are* the
+  sandbox and the workflow cdforge guarantees, and are the reason re-running `adopt` after a
+  cdforge upgrade is the supported upgrade path for generated projects.
+- **merged** (`.gitignore`, `.claude/settings.json`) — cdforge's entries are added and the
+  project's are never removed (line-append and deep JSON merge respectively; a scalar the
+  project already set always wins).
+- **create-only** (`CLAUDE.md`, `README.md`, `CHANGELOG.md`, `LICENSE`,
+  `docker-compose.yml`, `.env.example`) — written only when missing, otherwise reported as a
+  conflict and left untouched (`--write-suggestions` writes `<name>.cdforge-new` alongside).
+- everything else is application code and is never written into an existing project.
+
+When a compose-based type is adopted into a project that already has its own
+`docker-compose.yml`, the generated compose file cannot go to the root (overwriting it is
+destructive, leaving it alone would point `devcontainer.json` at a file with no `app`
+service). `adopt` therefore re-renders it as `.devcontainer/docker-compose.cdforge.yml` and
+`devcontainer.json` lists both files — Docker Compose merges them and resolves the relative
+paths of *every* file against the first file's directory (the project root), which is why the
+override's `.`/`./.devcontainer` paths still mean what they say. The choice is driven by
+`compose_file_location` (`root` | `devcontainer`) in `context_builder.py`; it is derived per
+run, never stored in `.cdforge.json`, so a generated project keeps its root compose file and
+adoption stays idempotent.
+
+Consequences worth preserving: adoption is idempotent (a freshly scaffolded project reports
+"already aligned" — `tests/test_cli.py` asserts this round trip), it never edits
+`pyproject.toml` (it only *warns* when ruff/pytest are missing, since the generated
+pre-commit hook needs them), and it refuses to run over uncommitted tracked changes unless
+`--force`, so `git diff` is always a complete review of what it did. When adding a new file
+to `templates/common/`, decide which of the four categories it falls into — the default for
+an unlisted path is "never written into an existing project".
+
 ## Template tree layout
 
 - `templates/common/` mirrors a generated project's root exactly (`.devcontainer/`,
@@ -46,7 +89,9 @@ rationale documented in the templates themselves.
   `.devcontainer/Dockerfile.j2`, `pyproject.toml.j2`, source tree, ...) and is rendered on
   top of `common/`.
 - `templates/project_types/<id>/*.fragment.*.j2` (e.g. `CLAUDE.fragment.md.j2`,
-  `precommit.fragment.sh.j2`) live *outside* `template/` — they are never rendered as
+  `precommit.fragment.sh.j2`, `compose.fragment.yml.j2` — which is shared by the root
+  `docker-compose.yml` and the `.devcontainer/docker-compose.cdforge.yml` override) live
+  *outside* `template/` — they are never rendered as
   standalone output files, only pulled in via `{% include %}` from a `common/` template, so
   a single common file (`CLAUDE.md.j2`, `.githooks/pre-commit.j2`) can carry a
   type-specific section.
@@ -92,7 +137,10 @@ for the full reasoning if changing them:
   devcontainer is the unprivileged `app` service and the databases are siblings on the compose
   network, reached by hostname (`db`, `redis`). This gives real services without an
   in-container daemon or privilege. `use_compose` is derived in `context_builder.py`; when it
-  is false the devcontainer uses the plain `build.dockerfile` layout.
+  is false the devcontainer uses the plain `build.dockerfile` layout. In an adopted project
+  the same services may instead live in `.devcontainer/docker-compose.cdforge.yml` (see
+  `compose_file_location` below), which has the side benefit of being inside the read-only
+  mount.
 - **`.devcontainer/` is bind-mounted read-only into the container** (over the read-write
   workspace mount, with `claude-home` re-mounted read-write). This stops in-container code
   from rewriting `devcontainer.json`/`Dockerfile`/`post-create.sh`, which the host trusts and
@@ -121,6 +169,8 @@ for the full reasoning if changing them:
 - Commit each feature/fix on its own with a Conventional Commit message. Never `git push`.
 - `.githooks/pre-commit` (installed via `git config core.hooksPath .githooks`) runs
   `ruff check`, `ruff format --check`, and `pytest` before a commit is accepted.
+- A template file added under a path that `adopt.classify()` does not recognise is silently
+  skipped when adopting; add it to the right category in `adopt.py` in the same commit.
 - After touching a template, manually scaffold a project from it and run `uv sync`,
   `ruff check`, `ruff format --check`, and `pytest` *inside the generated project* —
   the test suite only checks file presence/content, not that generated Python/Django code
@@ -132,6 +182,10 @@ for the full reasoning if changing them:
   runs `devcontainer up`, and checks isolation / read-only `.devcontainer` / `ruff` / `pytest`
   / the docker/gpu capability *inside the real container*, then tears it down. It needs
   docker, `uv`, and the Dev Containers CLI; `sysbox` and `gpu` variants are auto-skipped when
-  the host lacks the runtime. Run `scripts/e2e.sh --list` to see variants,
+  the host lacks the runtime. The `py-adopt`/`dj-adopt` variants cover `cdforge adopt`: they
+  scaffold a project, delete everything cdforge manages (and give the compose project a
+  `docker-compose.yml` of its own), then adopt it and build the result — which is the only
+  way to verify the compose-override layout for real. Run `scripts/e2e.sh --list` to see
+  variants,
   `scripts/e2e.sh --only py-default,dj-sqlite` for a subset. This has found real build bugs
   (the broken yarn apt source; the `uv_build` module-name mismatch).

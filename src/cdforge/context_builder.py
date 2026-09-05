@@ -48,6 +48,23 @@ def build_context(
         and (context.get('database') == 'postgres' or context.get('include_celery'))
     )
 
+    # Where the generated compose file lives:
+    #   'root'         - `docker-compose.yml` at the project root (a fresh project).
+    #   'devcontainer' - `.devcontainer/docker-compose.cdforge.yml`, loaded as an *override*
+    #                    on top of a compose file the adopted project already had, so its
+    #                    own services survive and the devcontainer's `app` service is added.
+    #                    Compose resolves relative paths in every file against the first
+    #                    file's directory, so the override's paths still mean the root.
+    compose_file_location = context.get('compose_file_location')
+    if compose_file_location not in ('root', 'devcontainer'):
+        compose_file_location = 'root'
+    context['compose_file_location'] = compose_file_location
+    context['compose_files'] = (
+        ['../docker-compose.yml']
+        if compose_file_location == 'root'
+        else ['../docker-compose.yml', 'docker-compose.cdforge.yml']
+    )
+
     # How (if at all) Claude Code can run its own containers inside the devcontainer:
     #   'none'       - no in-container Docker (default, maximum sandbox).
     #   'sysbox'     - a full Docker daemon runs inside, isolated by the sysbox runtime
