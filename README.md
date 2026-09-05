@@ -137,6 +137,24 @@ so the rewrite is always reviewable with `git diff`.
 
 ## Developing cdforge itself
 
+**This repository has been adopted into its own template** (`cdforge adopt`, answers recorded
+in `.cdforge.json`), so cdforge is developed inside exactly the sandboxed devcontainer it
+generates — the fastest way to notice when that devcontainer is broken. Open the repository
+and choose **Dev Containers: Reopen in Container**, then run `claude` once in a container
+terminal to sign in.
+
+The devcontainer is configured with `docker_mode: sysbox`: a full Docker daemon runs *inside*
+the container, which is what `scripts/e2e.sh` needs, while the container itself stays
+unprivileged with no access to the host. This requires
+[Sysbox](https://github.com/nestybox/sysbox) installed on the Linux host — without it the
+container will not start (`unknown runtime sysbox-runc`). If your host does not have Sysbox,
+re-run `cdforge adopt . --reconfigure` and pick a different `docker_mode`; note that `none`
+leaves the e2e harness unable to run inside the container (run it on the host instead), and
+`privileged` gives Docker at the cost of host isolation. `network_firewall` is `none` here,
+so egress is unrestricted.
+
+Everything also works on the host without a container:
+
 ```console
 $ uv sync --all-extras
 $ uv run pytest

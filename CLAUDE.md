@@ -218,6 +218,27 @@ for the full reasoning if changing them:
 - `ruff` enforces style: single-quoted strings, one import per line and sorted
   (`force-single-line = true`) — never `from x import a, b`.
 
+## This repository is adopted into its own template
+
+`cdforge adopt` has been run on this repository itself, so cdforge is developed inside the
+same sandboxed devcontainer it generates (answers recorded in `.cdforge.json`:
+`python_uv_tool`, `docker_mode: sysbox`, `network_firewall: none`). Two consequences:
+
+- **`.devcontainer/`, `.claude/` and `.githooks/` here are generated output, not hand-written
+  files.** They are the *managed* category of `adopt.classify()` and the next
+  `cdforge adopt .` overwrites them. To change them, change the template under
+  `src/cdforge/templates/` and re-run `uv run cdforge adopt .` — never edit them in place, or
+  the edit silently disappears and the templates never learn about it. (`CLAUDE.md`,
+  `README.md` and `CHANGELOG.md` are the *create-only* category: they already exist, so
+  adoption reports them as conflicts and leaves this project's own versions alone.)
+- **`sysbox` was chosen because `scripts/e2e.sh` needs a Docker daemon**, and sysbox is the
+  only mode that provides one without making the container privileged. It requires Sysbox on
+  the host; without it the container does not start. `docker_mode: none` still works for
+  everything except the e2e harness, which then has to run on the host.
+
+Re-running `cdforge adopt .` after changing a template is also the cheapest smoke test that
+adoption still works, and keeps this repository's devcontainer current with the templates.
+
 ## Workflow
 
 - Keep this file, `README.md`, and `CHANGELOG.md` in sync with what the tool actually does.
