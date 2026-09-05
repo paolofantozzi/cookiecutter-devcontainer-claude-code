@@ -1,0 +1,21 @@
+{
+  "name": "cdforge",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "vscode",
+  "features": {
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
+  "runArgs": ["--runtime=sysbox-runc"],
+  "postStartCommand": "bash .devcontainer/docker-start.sh",
+  "mounts": [
+    "source=${localWorkspaceFolder}/.devcontainer,target=${containerWorkspaceFolder}/.devcontainer,type=bind,readonly",
+    "source=${localWorkspaceFolder}/.devcontainer/claude-home,target=/home/vscode/.claude,type=bind"
+  ],
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+  },
+  "initializeCommand": "mkdir -p \"${localWorkspaceFolder}/.devcontainer/claude-home\"",
+  "postCreateCommand": "bash .devcontainer/post-create.sh"
+}

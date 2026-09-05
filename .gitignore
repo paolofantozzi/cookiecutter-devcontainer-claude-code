@@ -8,3 +8,8 @@ __pycache__/
 dist/
 build/
 .DS_Store
+
+# --- added by cdforge ---
+/.devcontainer/claude-home/
+.vscode/*
+!.vscode/extensions.json

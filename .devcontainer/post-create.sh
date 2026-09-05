@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+git config core.hooksPath .githooks
+chmod +x .githooks/pre-commit 2>/dev/null || true
+
+# Sysbox: bring up the in-container Docker daemon (isolated, unprivileged, no host access).
+bash .devcontainer/docker-start.sh
+
+if [ ! -f "${CLAUDE_CONFIG_DIR}/settings.json" ]; then
+  mkdir -p "${CLAUDE_CONFIG_DIR}"
+  cat > "${CLAUDE_CONFIG_DIR}/settings.json" <<'JSON'
+{
+  "permissions": {
+    "defaultMode": "auto"
+  }
+}
+JSON
+fi
+
+uv sync --all-extras
+
+echo "Setup complete. Run 'claude' to sign in (once per project) and start working."

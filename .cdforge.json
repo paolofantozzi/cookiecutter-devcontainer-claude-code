@@ -1,0 +1,20 @@
+{
+  "answers": {
+    "author_email": "paolo.fantozzi@gmail.com",
+    "author_name": "Paolo Fantozzi",
+    "cli_command_name": "cdforge",
+    "docker_mode": "sysbox",
+    "git_remote_url": "git@github.com:paolofantozzi/cookiecutter-devcontainer-claude-code.git",
+    "gpu_enabled": false,
+    "include_mypy": false,
+    "license_id": "MIT",
+    "network_firewall": "none",
+    "optional_skills": [],
+    "package_import_name": "cdforge",
+    "project_name": "cdforge",
+    "project_type": "python_uv_tool",
+    "python_version": "3.12"
+  },
+  "cdforge_version": "0.1.14",
+  "updated_at": "2026-09-05T16:16:06+00:00"
+}

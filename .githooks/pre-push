@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Defense-in-depth guard: this project is meant to be developed by Claude Code inside the
+# devcontainer, and commits are supposed to stay local until a human pushes them. This hook
+# refuses every push so an automated agent cannot publish work on its own.
+#
+# NOTE: this is a best-effort guardrail, not a security boundary — it can be bypassed with
+# `git push --no-verify` or by unsetting core.hooksPath. The real reason the container
+# cannot push is that it holds no push credentials (no SSH keys, tokens, or credential
+# helpers are mounted into it). A human pushes from the host, where the hook does not run.
+echo "pre-push hook: pushing is disabled in this devcontainer. A human should push from the host." >&2
+exit 1
