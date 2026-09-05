@@ -5,6 +5,42 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.13] - 2026-09-05
+
+### Added
+
+- Optional **network egress firewall** for the generated devcontainer, answered at scaffold
+  time as `network_firewall` (`none` | `allowlist` | `strict`, default `none`). A
+  devcontainer is a *filesystem* sandbox: by default it still sits on a Docker bridge and can
+  reach the internet, the LAN, and the host itself at the bridge gateway, so ports listening
+  on the host answer from inside the container.
+  - `allowlist` renders `.devcontainer/init-firewall.sh`, copies it into the image as
+    root-owned `/usr/local/bin/cdforge-firewall`, and runs it from `postStartCommand` (after
+    the Docker daemon, when there is one). It rejects the default gateway and everything
+    else except DNS, the container's own subnets (compose siblings, nested Docker) and an
+    allowlist of hosts (Anthropic, GitHub, PyPI, npm, Debian); IPv6 egress is closed. Extra
+    domains go in `.devcontainer/firewall-allow.txt`, which is on the read-only mount and so
+    can only be extended from the host. Capabilities are `NET_ADMIN`/`NET_RAW` — never
+    `--privileged`.
+  - `strict` additionally removes the base image's blanket passwordless sudo, leaving one
+    sudoers rule for the firewall script, so the rules cannot be flushed from inside. It
+    needs no in-container Docker (whose daemon needs root) and degrades to `allowlist` when
+    one is enabled.
+- `scripts/e2e.sh` variants `py-firewall`, `py-firewall-strict` and `dj-firewall`, which
+  check inside the real container that the host gateway is unreachable, that the allowlist
+  still works, that an off-allowlist host is rejected, and that strict mode has no blanket
+  sudo.
+
+### Changed
+
+- Postgres and Redis are published on `127.0.0.1` instead of every host interface. The
+  devcontainer reaches them by hostname on the compose network, so the previous binding only
+  exposed a fixed-password dev database to the whole LAN.
+- The generated `README.md`/`CLAUDE.md` and this repository's `README.md` now say plainly
+  that, without the firewall, the sandbox covers the filesystem and not the network — the
+  previous wording ("nothing else on the host is reachable from inside it") read as a
+  promise it did not keep.
+
 ## [0.1.12] - 2026-09-05
 
 ### Added

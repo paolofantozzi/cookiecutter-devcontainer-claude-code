@@ -151,6 +151,33 @@ for the full reasoning if changing them:
 - The "never push" rule is defended in depth (a `permissions.deny` glob plus a
   `.githooks/pre-push` hook) but its real basis is that no push credentials are mounted into
   the container. Keep the docs honest that the deny/hook are best-effort.
+- **The sandbox is a filesystem sandbox by default; the network is opt-in.** A devcontainer
+  sits on an ordinary Docker bridge, so without a firewall it reaches the internet, the LAN,
+  and the *host itself* at the bridge gateway (the host's own listening ports answer from
+  inside the container). `network_firewall` (`none` | `allowlist` | `strict`, derived in
+  `context_builder.py`) controls this:
+  - `none` (default): unrestricted, and the generated README/CLAUDE must say so plainly
+    rather than letting "sandboxed" imply the network is covered.
+  - `allowlist`: `.devcontainer/init-firewall.sh` is **copied into the image** as
+    `/usr/local/bin/cdforge-firewall` (root-owned, so it cannot be rewritten from inside;
+    the COPY path differs between the plain layout, whose build context is `.devcontainer/`,
+    and the compose layout, whose context is the project root) and run by `postStartCommand`
+    after `docker-start.sh`, so the firewall has the last word. It rejects egress to the
+    default gateway, allows DNS to the container's resolvers (a deliberate hole when the
+    resolver *is* the gateway), allows the container's own attached subnets (compose
+    siblings, nested Docker), allows an explicit domain allowlist, and rejects the rest;
+    IPv6 is closed outright. Capabilities come from `runArgs: --cap-add=NET_ADMIN` (plain)
+    or `cap_add` on the `app` service (compose) — never `--privileged`.
+  - `strict`: `allowlist` plus a Dockerfile step that removes the base image's blanket
+    NOPASSWD sudo, leaving one sudoers rule for the firewall script, so the rules cannot be
+    flushed from inside. It is incompatible with in-container Docker (whose daemon needs
+    root at runtime) and `context_builder.py` degrades it to `allowlist` there — keep that
+    degradation if either option changes.
+  Keep the docs honest about which of these is in effect: in `allowlist` mode
+  `sudo iptables -F` still works, so it stops incidental traffic, not a determined process.
+- Dev services in `compose.fragment.yml.j2` publish on `127.0.0.1` only. The devcontainer
+  reaches `db`/`redis` by hostname on the compose network; publishing on all interfaces
+  would put a fixed-password dev database on the LAN.
 - GPU passthrough is `runArgs: ["--gpus=all"]` in the plain build layout, and a device
   reservation on the `app` service in the compose layout.
 

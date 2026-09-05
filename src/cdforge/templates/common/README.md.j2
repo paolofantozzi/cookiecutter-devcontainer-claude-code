@@ -35,10 +35,44 @@ Use `cdforge adopt --dry-run` to see what would change first.
 ## Sandboxing
 
 The devcontainer only mounts this project's folder and its own Claude Code config
-directory — nothing else on the host is reachable from inside it. It runs as an ordinary,
-**unprivileged** container: it has no access to the host's block devices, Docker socket, or
-filesystem. `.devcontainer/` is mounted read-only, so the sandbox definition itself cannot be
-rewritten from inside the container.
+directory — no other part of the host *filesystem* is reachable from inside it. It runs as an
+ordinary, **unprivileged** container: it has no access to the host's block devices, Docker
+socket, or filesystem. `.devcontainer/` is mounted read-only, so the sandbox definition itself
+cannot be rewritten from inside the container.
+
+{% if not firewall_enabled %}
+**The network is not part of that sandbox.** Like any devcontainer, this one sits on a Docker
+bridge: it can reach the internet, your LAN, and the host itself through the bridge gateway,
+so ports listening on the host (SSH, databases, dev servers) are reachable from inside the
+container. Only the filesystem is isolated. Re-run `cdforge adopt` on the host and pick a
+network firewall mode if you want that closed.
+{% else %}
+**The network is restricted too.** `.devcontainer/init-firewall.sh` is installed into the
+image and applied by `postStartCommand` on every start: it rejects egress to the Docker bridge
+gateway (so ports listening on the *host* — SSH, databases, dev servers — are unreachable from
+in here) and to everything except DNS, this container's own networks, and an explicit
+allowlist of hosts (the Anthropic endpoints, GitHub, PyPI, npm, Debian). IPv6 egress is closed
+outright.
+
+Add hosts by putting one domain per line in `.devcontainer/firewall-allow.txt` **on the
+host** — that path is on the read-only mount, so it cannot be extended from inside the
+container — then restart the container, or re-apply immediately with
+`sudo /usr/local/bin/cdforge-firewall`. Re-run that command too if a long-lived session starts
+failing because DNS moved an allowlisted host to a new address.
+{% if network_firewall == 'allowlist' %}
+
+This is the **allowlist** mode: the image keeps its passwordless `sudo`, so a process in the
+container can undo the rules with `sudo iptables -F`. It is a guard against accidental and
+incidental traffic, not a boundary against a determined process — the `strict` mode removes
+that `sudo`.
+{% else %}
+
+This is the **strict** mode: the base image's blanket passwordless `sudo` has been removed, so
+the rules cannot be flushed from inside. `sudo` works for exactly one command,
+`/usr/local/bin/cdforge-firewall`. Install system packages by editing
+`.devcontainer/Dockerfile` on the host and rebuilding the container.
+{% endif %}
+{% endif %}
 
 One thing to keep in mind: the project folder is the *same files* on the host disk. Anything
 in it that **the host** later runs — git hooks under `.git/hooks`, an editor task in

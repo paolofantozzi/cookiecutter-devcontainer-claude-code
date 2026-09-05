@@ -1,0 +1,136 @@
+{% if firewall_enabled %}
+#!/usr/bin/env bash
+#
+# Egress firewall for this devcontainer.
+#
+# A devcontainer is unprivileged and cannot reach the host *filesystem*, but by default it
+# sits on an ordinary Docker bridge: the host is one hop away at the bridge gateway (so the
+# host's own listening ports — SSH, databases, whatever else is bound — are reachable), and
+# so are the LAN and the whole internet. This script closes that: everything is rejected
+# except the loopback, replies to connections we opened, DNS, the container's own networks
+# (the compose siblings and any nested Docker), and an explicit allowlist of hosts.
+#
+# It is baked into the image as /usr/local/bin/cdforge-firewall (root-owned, not writable
+# from inside the container) and run by postStartCommand on every container start. Re-run it
+# by hand after a long session if DNS has moved an allowlisted host to a new address:
+#
+#     sudo /usr/local/bin/cdforge-firewall
+#
+# To change the allowlist, edit `.devcontainer/init-firewall.sh` **on the host** and rebuild
+# the container, or add domains (one per line, `#` comments allowed) to
+# `.devcontainer/firewall-allow.txt` — that path is on the read-only mount, so it can only be
+# written from the host, which is the point.
+{% if network_firewall == 'allowlist' %}
+#
+# NOTE: this project keeps the base image's passwordless sudo, so a process inside the
+# container can undo these rules with `sudo iptables -F`. That makes this a guard against
+# accidental and incidental traffic, not a boundary against a determined process. The
+# 'strict' firewall mode removes that sudo.
+{% endif %}
+set -euo pipefail
+
+CHAIN='CDFORGE_EGRESS'
+
+# Hosts the container is allowed to reach. Claude Code needs the Anthropic endpoints (and
+# claude.ai for the OAuth sign-in); the rest is the toolchain this project installs from.
+ALLOWED_DOMAINS=(
+  'api.anthropic.com'
+  'console.anthropic.com'
+  'claude.ai'
+  'statsig.anthropic.com'
+  'github.com'
+  'api.github.com'
+  'codeload.github.com'
+  'objects.githubusercontent.com'
+  'raw.githubusercontent.com'
+  'pypi.org'
+  'files.pythonhosted.org'
+  'registry.npmjs.org'
+  'astral.sh'
+  'deb.debian.org'
+  'security.debian.org'
+)
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo 'init-firewall: must run as root (sudo /usr/local/bin/cdforge-firewall)' >&2
+  exit 1
+fi
+
+# Extra domains, added on the host: `.devcontainer/` is mounted read-only, so this file
+# cannot be extended from inside the container.
+for extra in ./.devcontainer/firewall-allow.txt /workspaces/*/.devcontainer/firewall-allow.txt; do
+  [ -f "$extra" ] || continue
+  while read -r line; do
+    line="${line%%#*}"
+    line="$(echo "$line" | tr -d '[:space:]')"
+    [ -n "$line" ] && ALLOWED_DOMAINS+=("$line")
+  done < "$extra"
+  break
+done
+
+# Rebuild the chain from scratch on every run, and hook it in only once, so re-running is
+# idempotent and never doubles the rules.
+iptables -N "$CHAIN" 2>/dev/null || iptables -F "$CHAIN"
+iptables -C OUTPUT -j "$CHAIN" 2>/dev/null || iptables -I OUTPUT 1 -j "$CHAIN"
+
+iptables -A "$CHAIN" -o lo -j ACCEPT
+iptables -A "$CHAIN" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# DNS to the resolvers this container was given. When Docker hands the container the bridge
+# gateway as its resolver, this is deliberately a hole in the "the host is unreachable" rule
+# below: port 53 to the host's resolver stays open, because nothing resolves without it.
+nameservers="$(awk '/^nameserver/ {print $2}' /etc/resolv.conf | sort -u)"
+for ns in $nameservers; do
+  iptables -A "$CHAIN" -p udp -d "$ns" --dport 53 -j ACCEPT
+  iptables -A "$CHAIN" -p tcp -d "$ns" --dport 53 -j ACCEPT
+done
+
+# The host itself, one hop away at the bridge gateway. This is the rule the whole script
+# exists for: it is what makes the host's own open ports unreachable from in here.
+gateways="$(ip route show default | awk '{print $3}' | sort -u)"
+for gw in $gateways; do
+  iptables -A "$CHAIN" -d "$gw" -j REJECT --reject-with icmp-port-unreachable
+done
+
+# The container's own attached networks: the compose siblings (db, redis) and, when
+# in-container Docker is on, the nested containers' bridge.
+subnets="$(ip -o -f inet addr show scope global | awk '{print $4}' | sort -u)"
+for subnet in $subnets; do
+  iptables -A "$CHAIN" -d "$subnet" -j ACCEPT
+done
+
+resolved=0
+for domain in "${ALLOWED_DOMAINS[@]}"; do
+  addresses="$(getent ahostsv4 "$domain" | awk '{print $1}' | sort -u || true)"
+  if [ -z "$addresses" ]; then
+    echo "init-firewall: could not resolve ${domain}, skipping it" >&2
+    continue
+  fi
+  for address in $addresses; do
+    iptables -A "$CHAIN" -d "$address" -j ACCEPT
+    resolved=$((resolved + 1))
+  done
+done
+
+iptables -A "$CHAIN" -j REJECT --reject-with icmp-port-unreachable
+
+# Traffic *forwarded* for nested containers does not pass OUTPUT, so apply the same policy
+# to Docker's own hook chain when an in-container daemon has created it.
+if iptables -L DOCKER-USER -n >/dev/null 2>&1; then
+  iptables -D DOCKER-USER -j "$CHAIN" 2>/dev/null || true
+  iptables -I DOCKER-USER 1 -j "$CHAIN"
+fi
+
+# IPv6 would be a way straight around an IPv4 allowlist, so it is closed entirely — unless
+# this kernel has no ip6tables at all, in which case there is no IPv6 to close.
+if command -v ip6tables >/dev/null 2>&1 && ip6tables -L -n >/dev/null 2>&1; then
+  ip6tables -N "$CHAIN" 2>/dev/null || ip6tables -F "$CHAIN"
+  ip6tables -C OUTPUT -j "$CHAIN" 2>/dev/null || ip6tables -I OUTPUT 1 -j "$CHAIN"
+  ip6tables -A "$CHAIN" -o lo -j ACCEPT
+  ip6tables -A "$CHAIN" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+  ip6tables -A "$CHAIN" -j REJECT --reject-with icmp6-port-unreachable
+fi
+
+echo "init-firewall: egress restricted to ${resolved} allowlisted addresses;" \
+     "rejected gateways: ${gateways//$'\n'/ }"
+{% endif %}

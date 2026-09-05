@@ -225,3 +225,69 @@ def test_git_remote_is_set_when_provided(tmp_path: Path) -> None:
     )
 
     assert 'https://example.com/widget-tool.git' in remotes.stdout
+
+
+def test_network_egress_is_unrestricted_by_default(tmp_path: Path) -> None:
+    project_dir = _scaffold(tmp_path)
+
+    config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
+
+    assert not (project_dir / '.devcontainer' / 'init-firewall.sh').exists()
+    assert 'postStartCommand' not in config
+    assert 'runArgs' not in config
+    # The docs must say so rather than implying the sandbox covers the network too.
+    assert 'not** network-isolated' in (project_dir / 'CLAUDE.md').read_text()
+
+
+def test_allowlist_firewall_rejects_the_host_gateway(tmp_path: Path) -> None:
+    answers = load_answers_file(FIXTURE)
+    answers['network_firewall'] = 'allowlist'
+
+    project_dir = scaffold_project(answers, tmp_path / 'widget-tool-firewall')
+    config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
+
+    assert config['runArgs'] == ['--cap-add=NET_ADMIN', '--cap-add=NET_RAW']
+    assert config['postStartCommand'] == 'sudo /usr/local/bin/cdforge-firewall'
+
+    script = project_dir / '.devcontainer' / 'init-firewall.sh'
+    assert os.access(script, os.X_OK)
+    firewall = script.read_text()
+    # The rule the whole feature exists for: the host, one hop away at the bridge gateway.
+    assert "ip route show default | awk '{print $3}'" in firewall
+    assert 'api.anthropic.com' in firewall
+
+    dockerfile = (project_dir / '.devcontainer' / 'Dockerfile').read_text()
+    # The plain build layout's context is .devcontainer/ itself, and iptables must be there.
+    assert 'COPY init-firewall.sh /usr/local/bin/cdforge-firewall' in dockerfile
+    assert 'iptables' in dockerfile
+    # This mode deliberately keeps sudo, and the docs must admit the rules are flushable.
+    assert 'sudoers.d' not in dockerfile
+    assert 'sudo iptables -F' in (project_dir / 'README.md').read_text()
+
+
+def test_strict_firewall_removes_passwordless_sudo(tmp_path: Path) -> None:
+    answers = load_answers_file(FIXTURE)
+    answers['network_firewall'] = 'strict'
+
+    project_dir = scaffold_project(answers, tmp_path / 'widget-tool-strict')
+    dockerfile = (project_dir / '.devcontainer' / 'Dockerfile').read_text()
+
+    assert 'rm -f /etc/sudoers.d/vscode' in dockerfile
+    assert 'NOPASSWD: /usr/local/bin/cdforge-firewall' in dockerfile
+
+
+def test_strict_firewall_degrades_to_allowlist_with_in_container_docker(tmp_path: Path) -> None:
+    # A Docker daemon inside the container needs root at runtime, so strict cannot hold.
+    answers = load_answers_file(FIXTURE)
+    answers['network_firewall'] = 'strict'
+    answers['docker_mode'] = 'sysbox'
+
+    project_dir = scaffold_project(answers, tmp_path / 'widget-tool-strict-docker')
+    config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
+    dockerfile = (project_dir / '.devcontainer' / 'Dockerfile').read_text()
+
+    assert 'sudoers.d' not in dockerfile
+    # Docker comes up first; the firewall is applied last, so it has the final word.
+    assert config['postStartCommand'] == (
+        'bash .devcontainer/docker-start.sh && sudo /usr/local/bin/cdforge-firewall'
+    )

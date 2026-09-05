@@ -22,6 +22,23 @@ container:
   edit them on the host and rebuild — those edits cannot be made from within the container.
 - Runs as an ordinary, **unprivileged** container: no host block devices, no host Docker
   socket, no host filesystem beyond this workspace.
+{% if firewall_enabled %}
+- Has restricted **network egress**: `/usr/local/bin/cdforge-firewall` (rendered from
+  `.devcontainer/init-firewall.sh`) runs on every container start and rejects everything
+  except DNS, this container's own networks, and an allowlist of hosts — the host itself,
+  reachable at the Docker bridge gateway on any other devcontainer, is rejected. If a network
+  call fails with "connection refused" to a host that should work, that is the firewall, not
+  the code: the allowlist is extended on the host (`.devcontainer/firewall-allow.txt`), which
+  you cannot do from in here.
+{% if network_firewall == 'strict' %}
+- Has **no passwordless sudo**: `sudo` works only for the firewall script. Do not try to
+  install system packages — they belong in `.devcontainer/Dockerfile`, edited on the host.
+{% endif %}
+{% else %}
+- Is **not** network-isolated: it can reach the internet, the host's LAN, and the host itself
+  through the Docker bridge gateway. Only the filesystem is sandboxed. Treat anything you send
+  over the network as leaving the sandbox.
+{% endif %}
 {% if use_compose %}
 - Talks to its backing services (Postgres/Redis) as sibling containers over a private
   compose network, by hostname (`db`, `redis`). Those services are not on the host

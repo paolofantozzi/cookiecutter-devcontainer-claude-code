@@ -34,8 +34,8 @@
 {% if run_args %}
   "runArgs": {{ run_args | tojson }},
 {% endif %}
-{% if docker_mode in ('sysbox', 'privileged') %}
-  "postStartCommand": "bash .devcontainer/docker-start.sh",
+{% if post_start_command %}
+  "postStartCommand": {{ post_start_command | tojson }},
 {% endif %}
 {% if not use_compose %}
   "mounts": [

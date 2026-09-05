@@ -80,6 +80,29 @@ def build_context(
     # `enable_docker` now specifically means "the privileged docker-in-docker feature".
     context['enable_docker'] = docker_mode == 'privileged'
 
+    # Egress control for the devcontainer:
+    #   'none'      - no restriction (the default, and what any devcontainer does out of the
+    #                 box): the container can reach the internet, the host's LAN, and the
+    #                 host itself through the Docker bridge gateway.
+    #   'allowlist' - `.devcontainer/init-firewall.sh` rejects egress to the Docker gateway
+    #                 (so the host's own listening ports stop being reachable) and to
+    #                 anything not on the allowlist. It needs NET_ADMIN/NET_RAW, and the base
+    #                 image keeps its passwordless sudo, so in-container root can still flush
+    #                 the rules: it stops incidental traffic, not a determined process.
+    #   'strict'    - 'allowlist' plus removing the base image's blanket NOPASSWD sudo,
+    #                 leaving one rule for the firewall script alone (baked into the image as
+    #                 /usr/local/bin/cdforge-firewall, root-owned and unwritable from inside),
+    #                 so the rules cannot be undone from within the container. In-container
+    #                 Docker needs root at runtime, so 'strict' degrades to 'allowlist'
+    #                 whenever docker_mode is not 'none'.
+    network_firewall = context.get('network_firewall')
+    if network_firewall not in ('none', 'allowlist', 'strict'):
+        network_firewall = 'none'
+    if network_firewall == 'strict' and docker_mode != 'none':
+        network_firewall = 'allowlist'
+    context['network_firewall'] = network_firewall
+    context['firewall_enabled'] = network_firewall in ('allowlist', 'strict')
+
     # runArgs for the plain (non-compose) layout. In the compose layout the runtime/privilege
     # is expressed on the `app` service instead.
     run_args: list[str] = []
@@ -87,13 +110,29 @@ def build_context(
         run_args.append('--gpus=all')
     if docker_mode == 'sysbox' and not context['use_compose']:
         run_args.append('--runtime=sysbox-runc')
+    if context['firewall_enabled'] and not context['use_compose']:
+        # iptables inside the container needs NET_ADMIN; NET_RAW is already in Docker's
+        # default set but is named here so the requirement is explicit.
+        run_args += ['--cap-add=NET_ADMIN', '--cap-add=NET_RAW']
     context['run_args'] = run_args
+
+    # postStartCommand runs on every container start. Docker first (the sysbox mode fetches
+    # its installer over the network), the firewall last, so it is the final word on egress.
+    post_start_commands: list[str] = []
+    if docker_mode in ('sysbox', 'privileged'):
+        post_start_commands.append('bash .devcontainer/docker-start.sh')
+    if context['firewall_enabled']:
+        post_start_commands.append('sudo /usr/local/bin/cdforge-firewall')
+    context['post_start_command'] = ' && '.join(post_start_commands)
 
     context['project_type'] = project_type.id
     context['project_type_label'] = project_type.label
     context['remote_user'] = project_type.remote_user
     context['base_image'] = project_type.base_image
-    context['extra_apt_packages'] = project_type.extra_apt_packages
+    extra_apt_packages = list(project_type.extra_apt_packages)
+    if context['firewall_enabled'] and 'iptables' not in extra_apt_packages:
+        extra_apt_packages.append('iptables')
+    context['extra_apt_packages'] = extra_apt_packages
     context['extra_features'] = project_type.extra_features
     context['optional_skills'] = optional_skill_ids
     context['cdforge_version'] = __version__

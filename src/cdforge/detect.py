@@ -83,6 +83,12 @@ def _detect_devcontainer_answers(project_dir: Path) -> dict[str, Any]:
         detected['docker_mode'] = 'sysbox'
     if '--gpus' in raw or '"gpu"' in raw:
         detected['gpu_enabled'] = True
+    if 'cdforge-firewall' in raw:
+        # The sudoers drop-in only exists in the strict mode, so the Dockerfile tells the
+        # two firewall modes apart.
+        dockerfile = project_dir / '.devcontainer' / 'Dockerfile'
+        strict = dockerfile.exists() and 'sudoers.d' in dockerfile.read_text(encoding='utf-8')
+        detected['network_firewall'] = 'strict' if strict else 'allowlist'
     return detected
 
 

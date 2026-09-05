@@ -84,6 +84,36 @@ def run_wizard(
         default=docker_default if docker_default in ('none', 'sysbox', 'privileged') else 'none',
     ).ask()
 
+    # A devcontainer is unprivileged, but by default it can still reach the host through the
+    # Docker bridge gateway, plus the LAN and the whole internet. The firewall closes that.
+    firewall_choices = [
+        questionary.Choice('None — unrestricted network egress (default)', value='none'),
+        questionary.Choice(
+            'Allowlist — reject the host gateway and anything off the allowlist '
+            '(in-container sudo can still flush it)',
+            value='allowlist',
+        ),
+    ]
+    firewall_default = defaults.get('network_firewall', 'none')
+    if answers['docker_mode'] == 'none':
+        firewall_choices.append(
+            questionary.Choice(
+                'Strict — the allowlist, plus no passwordless sudo so it cannot be undone '
+                'from inside',
+                value='strict',
+            )
+        )
+    elif firewall_default == 'strict':
+        # In-container Docker needs root at runtime, so strict cannot apply there.
+        firewall_default = 'allowlist'
+    answers['network_firewall'] = questionary.select(
+        "Restrict the devcontainer's network egress?",
+        choices=firewall_choices,
+        default=firewall_default
+        if firewall_default in {choice.value for choice in firewall_choices}
+        else 'none',
+    ).ask()
+
     catalog = skills_for_type(project_type.id)
     if catalog:
         preselected = set(defaults.get('optional_skills', []) or [])

@@ -29,6 +29,12 @@ installed on your host at all.
 - Every terminal session starts in Claude Code's `auto` permission mode; pushing is
   discouraged by a `permissions.deny` entry and a `pre-push` hook, and prevented in practice
   because no push credentials are mounted into the container.
+- **Optional egress firewall**, off by default: `allowlist` mode installs an iptables script
+  into the image that rejects everything except DNS, the container's own networks, and an
+  allowlist (Anthropic, GitHub, PyPI, npm, Debian) — including the Docker bridge gateway,
+  which is how the *host's* own listening ports are reachable from an ordinary devcontainer.
+  `strict` mode additionally removes the base image's passwordless `sudo`, so the rules cannot
+  be flushed from inside.
 - Optional GPU passthrough for the devcontainer itself, chosen at scaffold time.
 - A `.githooks/pre-commit` hook that runs the linter and the full test suite before any
   commit is accepted.
@@ -50,9 +56,18 @@ optional Claude Code skills you can add on top of the mandatory ones.
 
 The generated devcontainer is an unprivileged container whose only writable mount is the
 project workspace (`.devcontainer/` is read-only). From inside it, Claude Code cannot reach
-the host filesystem, the host Docker daemon, or host devices. Two things are worth
+the host filesystem, the host Docker daemon, or host devices. Three things are worth
 understanding, though:
 
+- **The sandbox is a filesystem sandbox; the network is opt-in.** With the default
+  `network_firewall: none`, the container behaves like any devcontainer: it sits on a Docker
+  bridge and can reach the internet, your LAN, and the host itself through the bridge gateway
+  — so anything listening on the host (SSH, a database, a dev server) answers from inside the
+  container. Choose the `allowlist` or `strict` firewall mode to close that. In `allowlist`
+  mode the image keeps its passwordless `sudo`, so in-container root can flush the rules:
+  that mode stops incidental traffic, it is not a boundary against a determined process.
+  `strict` removes that `sudo` (and is therefore incompatible with in-container Docker, whose
+  daemon needs root at runtime — it degrades to `allowlist` there).
 - **The workspace itself is shared with the host.** Everything under the project folder is
   the same bytes on the host disk. Files there that the *host* later executes — git hooks
   under `.git/hooks`, an editor task in `.vscode/`, a `Makefile` you run on the host — run

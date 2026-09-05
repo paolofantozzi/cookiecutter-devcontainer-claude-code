@@ -12,6 +12,13 @@ services:
     # WARNING: privileged re-introduces host kernel/device access (voids host isolation).
     privileged: true
 {% endif %}
+{% if firewall_enabled %}
+    # The in-container egress firewall (.devcontainer/init-firewall.sh) needs to write
+    # iptables rules; the container stays unprivileged.
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+{% endif %}
     volumes:
       - .:/workspaces/{{ project_slug }}:cached
       # The container that defines the sandbox must not be editable from inside it:
@@ -50,14 +57,14 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
 {% endif %}
 {% if include_celery %}
   redis:
     image: redis:7
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 {% endif %}
 {% if database == 'postgres' %}
 

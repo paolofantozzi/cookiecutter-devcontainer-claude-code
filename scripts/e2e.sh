@@ -58,6 +58,9 @@ VARIANTS=(
   "dj-sqlite|django_drf|database=sqlite include_celery=false"
   "dj-postgres-celery|django_drf|database=postgres include_celery=true"
   "dj-privileged|django_drf|database=postgres include_celery=true docker_mode=privileged"
+  "py-firewall|python_uv_tool|network_firewall=allowlist"
+  "py-firewall-strict|python_uv_tool|network_firewall=strict"
+  "dj-firewall|django_drf|database=postgres include_celery=true network_firewall=allowlist"
   "py-adopt|python_uv_tool||adopt"
   "dj-adopt|django_drf|database=postgres include_celery=false|adopt"
 )
@@ -156,6 +159,24 @@ case "$E2E_MODE" in
     if docker run --rm hello-world >/dev/null 2>&1; then ok "in-container docker works"; else bad "in-container docker" "hello-world failed"; fi ;;
 esac
 
+if [ "$E2E_FIREWALL" != "none" ]; then
+  gw="$(ip route show default | awk '{print $3}' | head -1)"
+  # The point of the firewall: the host, one hop away at the bridge gateway, is unreachable.
+  # (Best-effort: it only proves anything on a host with something listening on :22.)
+  if [ -n "$gw" ] && timeout 4 bash -c "echo > /dev/tcp/${gw}/22" 2>/dev/null; then
+    bad "host gateway blocked" "connected to ${gw}:22"
+  else
+    ok "host gateway blocked"
+  fi
+  # ...while the allowlist still lets Claude Code and the toolchain out.
+  if curl -s -m 15 -o /dev/null https://pypi.org/simple/ 2>/dev/null; then ok "allowlist reachable"; else bad "allowlist reachable" "pypi.org unreachable"; fi
+  if curl -s -m 8 -o /dev/null https://example.com 2>/dev/null; then bad "off-allowlist blocked" "example.com reachable"; else ok "off-allowlist blocked"; fi
+fi
+if [ "$E2E_FIREWALL" = "strict" ]; then
+  if sudo -n true 2>/dev/null; then bad "no blanket sudo" "sudo -n true succeeded"; else ok "no blanket sudo"; fi
+  if sudo -n /usr/local/bin/cdforge-firewall >/dev/null 2>&1; then ok "firewall re-appliable"; else bad "firewall re-appliable" "sudo cdforge-firewall failed"; fi
+fi
+
 if [ "$E2E_GPU" = "true" ]; then
   if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then ok "gpu visible"; else bad "gpu visible" "nvidia-smi failed"; fi
 fi
@@ -182,10 +203,11 @@ run_variant() {
 
   local mode="none"; case "$extras" in *docker_mode=sysbox*) mode=sysbox ;; *docker_mode=privileged*) mode=privileged ;; esac
   local gpu="false"; case "$extras" in *gpu_enabled=true*) gpu=true ;; esac
+  local firewall="none"; case "$extras" in *network_firewall=strict*) firewall=strict ;; *network_firewall=allowlist*) firewall=allowlist ;; esac
 
   local proj="$WORK_DIR/$name"
   local ans="$WORK_DIR/$name.json"
-  echo "==================== $name ($ptype, docker=$mode, gpu=$gpu, scaffold=${smode:-new}) ===================="
+  echo "==================== $name ($ptype, docker=$mode, gpu=$gpu, firewall=$firewall, scaffold=${smode:-new}) ===================="
   rm -rf "$proj"
   write_answers "$ans" "$name" "$ptype" "$extras"
 
@@ -215,7 +237,7 @@ run_variant() {
   fi
 
   local body; body="$(container_checks)"
-  local pre="export E2E_PTYPE='$ptype' E2E_MODE='$mode' E2E_GPU='$gpu';"
+  local pre="export E2E_PTYPE='$ptype' E2E_MODE='$mode' E2E_GPU='$gpu' E2E_FIREWALL='$firewall';"
   if "${DEVCONTAINER[@]}" exec --workspace-folder "$proj" bash -lc "$pre $body"; then
     echo "  -> PASS"; RESULTS+=("PASS  $name")
   else

@@ -125,3 +125,33 @@ def test_settings_reference_installed_apps_and_auth(tmp_path: Path) -> None:
     assert "'apps.core'" in settings
     assert 'rest_framework_simplejwt' in settings
     assert 'drf_spectacular' in settings
+
+
+def test_dev_services_are_published_on_the_loopback_only(tmp_path: Path) -> None:
+    # The devcontainer reaches these by hostname on the compose network; publishing them on
+    # every host interface would expose a fixed-password dev database to the whole LAN.
+    compose = (_scaffold(tmp_path) / 'docker-compose.yml').read_text()
+
+    assert '"127.0.0.1:5432:5432"' in compose
+    assert '"127.0.0.1:6379:6379"' in compose
+
+
+def test_firewall_adds_capabilities_to_the_app_service(tmp_path: Path) -> None:
+    answers = load_answers_file(FIXTURE)
+    answers['network_firewall'] = 'allowlist'
+
+    project_dir = scaffold_project(answers, tmp_path / 'notes-api-firewall')
+    compose = (project_dir / 'docker-compose.yml').read_text()
+    config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
+    dockerfile = (project_dir / '.devcontainer' / 'Dockerfile').read_text()
+
+    # In the compose layout the capability goes on the service, never as a host runArg.
+    assert 'cap_add:' in compose
+    assert 'NET_ADMIN' in compose
+    assert 'runArgs' not in config
+    assert config['postStartCommand'] == 'sudo /usr/local/bin/cdforge-firewall'
+    # The compose build context is the project root, so the COPY path is prefixed.
+    assert 'COPY .devcontainer/init-firewall.sh /usr/local/bin/cdforge-firewall' in dockerfile
+    # The compose network's own subnet stays reachable, or db/redis would be cut off.
+    firewall = (project_dir / '.devcontainer' / 'init-firewall.sh').read_text()
+    assert 'ip -o -f inet addr show scope global' in firewall
