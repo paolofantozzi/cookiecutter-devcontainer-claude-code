@@ -34,6 +34,14 @@ class ProjectType:
     remote_user: str
     extra_apt_packages: list[str] = field(default_factory=list)
     extra_features: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Ports the devcontainer forwards to the host (a notebook server, a dev server, ...).
+    forward_ports: list[int] = field(default_factory=list)
+    # VS Code extensions this type needs to be usable at all (e.g. the Jupyter extension
+    # for a notebook project); the Claude Code extension is added by its own feature.
+    vscode_extensions: list[str] = field(default_factory=list)
+    # Hosts this type's toolchain fetches from, added to the egress allowlist when the
+    # network firewall is on.
+    extra_allowed_domains: list[str] = field(default_factory=list)
     questions: list[Question] = field(default_factory=list)
 
     @property

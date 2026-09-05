@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from cdforge import __version__
+from cdforge.project_types import data_science
 from cdforge.project_types import django_drf
 from cdforge.project_types import python_uv_tool
 from cdforge.project_types.base import ProjectType
@@ -13,6 +14,7 @@ from cdforge.project_types.base import ProjectType
 _DERIVE_DEFAULTS = {
     'python_uv_tool': python_uv_tool.derive_defaults,
     'django_drf': django_drf.derive_defaults,
+    'data_science': data_science.derive_defaults,
 }
 
 
@@ -134,6 +136,9 @@ def build_context(
         extra_apt_packages.append('iptables')
     context['extra_apt_packages'] = extra_apt_packages
     context['extra_features'] = project_type.extra_features
+    context['forward_ports'] = list(project_type.forward_ports)
+    context['vscode_extensions'] = list(project_type.vscode_extensions)
+    context['extra_allowed_domains'] = list(project_type.extra_allowed_domains)
     context['optional_skills'] = optional_skill_ids
     context['cdforge_version'] = __version__
     context['generation_year'] = datetime.now(tz=UTC).year

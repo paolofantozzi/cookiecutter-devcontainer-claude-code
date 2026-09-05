@@ -1,0 +1,94 @@
+[project]
+name = "{{ project_slug }}"
+version = "0.1.0"
+description = "{{ project_name }}"
+readme = "README.md"
+requires-python = ">={{ python_version }}"
+{% if license_id != 'None' %}
+license = { text = "{{ license_id }}" }
+{% endif %}
+authors = [
+    { name = "{{ author_name }}", email = "{{ author_email }}" },
+]
+dependencies = [
+    "numpy>=2.1",
+    "pandas>=2.2",
+    "pyarrow>=17.0",
+    "matplotlib>=3.9",
+    "seaborn>=0.13",
+    "scikit-learn>=1.5",
+    "joblib>=1.4",
+    "jupyterlab>=4.2",
+    "ipykernel>=6.29",
+    "ipywidgets>=8.1",
+    "tqdm>=4.66",
+{% if include_torch %}
+    "torch>=2.4",
+{% endif %}
+{% if include_transformers %}
+    "transformers>=4.44",
+    "datasets>=3.0",
+    "accelerate>=1.0",
+    "evaluate>=0.4",
+{% endif %}
+{% if experiment_tracking == 'mlflow' %}
+    "mlflow>=2.16",
+{% endif %}
+{% if experiment_tracking == 'wandb' %}
+    "wandb>=0.18",
+{% endif %}
+]
+
+[build-system]
+requires = ["uv_build>=0.11.26,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# The import package name can differ from the distribution name, so tell uv_build where the
+# module lives instead of letting it infer it from the project name.
+module-name = "{{ package_import_name }}"
+
+{% if include_torch and compute_target == 'cpu' %}
+# PyTorch's default PyPI wheels bundle the CUDA runtime and are several GB. This project
+# targets the CPU, so torch is pinned to PyTorch's CPU-only index instead. `explicit = true`
+# keeps every *other* dependency coming from PyPI. Switch to the CUDA build by deleting this
+# index and the [tool.uv.sources] entry below (and giving the container a GPU).
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+{% endif %}
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+    # Strips notebook outputs before they reach a commit (see .githooks/pre-commit).
+    "nbstripout>=0.7",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py{{ python_version.replace('.', '') }}"
+# Notebooks are source code here: lint and format their code cells like any other file.
+extend-include = ["*.ipynb"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.ruff.lint.per-file-ignores]
+# Notebooks legitimately re-import and redefine while exploring, and their last expression
+# is the cell's output rather than an unused value.
+"*.ipynb" = ["E402", "B018"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,28 @@
+"""Seeding, in one place, so an experiment can be repeated."""
+
+import os
+import random
+
+import numpy as np
+
+from {{ package_import_name }}.config import RANDOM_SEED
+
+
+def set_seed(seed: int = RANDOM_SEED) -> int:
+    """Seed every RNG this project can reach and return the seed that was applied.
+
+    `PYTHONHASHSEED` is set for subprocesses started afterwards; it does not affect the
+    already-running interpreter.
+    """
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+{% if include_torch %}
+
+    import torch
+
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+{% endif %}
+    return seed

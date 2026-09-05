@@ -1,0 +1,81 @@
+"""Loading and splitting datasets.
+
+Every notebook goes through these helpers rather than reading files directly, so the
+split (and therefore what "the test set" means) is identical everywhere.
+"""
+
+from pathlib import Path
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+
+from {{ package_import_name }}.config import PROCESSED_DATA_DIR
+from {{ package_import_name }}.config import RANDOM_SEED
+from {{ package_import_name }}.config import RAW_DATA_DIR
+
+
+def load_raw(name: str) -> pd.DataFrame:
+    """Read `data/raw/<name>`, dispatching on the file extension."""
+    return read_table(RAW_DATA_DIR / name)
+
+
+def load_processed(name: str) -> pd.DataFrame:
+    """Read `data/processed/<name>`, dispatching on the file extension."""
+    return read_table(PROCESSED_DATA_DIR / name)
+
+
+def read_table(path: Path) -> pd.DataFrame:
+    """Read a CSV or Parquet file into a DataFrame."""
+    suffix = path.suffix.lower()
+    if suffix == '.csv':
+        return pd.read_csv(path)
+    if suffix in ('.parquet', '.pq'):
+        return pd.read_parquet(path)
+    raise ValueError(f'Unsupported data format: {path.suffix!r} ({path})')
+
+
+def save_processed(frame: pd.DataFrame, name: str) -> Path:
+    """Write a DataFrame to `data/processed/<name>` and return the path it was written to.
+
+    Parquet keeps dtypes; prefer it over CSV for anything that is read back by code.
+    """
+    path = PROCESSED_DATA_DIR / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.suffix.lower() == '.csv':
+        frame.to_csv(path, index=False)
+    else:
+        frame.to_parquet(path, index=False)
+    return path
+
+
+def split_train_valid_test(
+    frame: pd.DataFrame,
+    *,
+    valid_size: float = 0.15,
+    test_size: float = 0.15,
+    stratify_on: str | None = None,
+    seed: int = RANDOM_SEED,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Split a DataFrame into train/validation/test parts.
+
+    The test set is carved out first, then the validation set out of what remains, so
+    changing `valid_size` never moves a row into or out of the test set.
+    """
+    if not 0 < valid_size + test_size < 1:
+        raise ValueError('valid_size + test_size must be between 0 and 1')
+
+    labels = frame[stratify_on] if stratify_on else None
+    rest, test = train_test_split(
+        frame,
+        test_size=test_size,
+        random_state=seed,
+        stratify=labels,
+    )
+    rest_labels = rest[stratify_on] if stratify_on else None
+    train, valid = train_test_split(
+        rest,
+        test_size=valid_size / (1 - test_size),
+        random_state=seed,
+        stratify=rest_labels,
+    )
+    return train, valid, test

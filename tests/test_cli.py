@@ -6,6 +6,7 @@ from cdforge.cli import app
 
 FIXTURE = Path(__file__).parent / 'fixtures' / 'answers_python_uv_tool.json'
 DJANGO_FIXTURE = Path(__file__).parent / 'fixtures' / 'answers_django_drf.json'
+DATA_SCIENCE_FIXTURE = Path(__file__).parent / 'fixtures' / 'answers_data_science.json'
 
 runner = CliRunner()
 
@@ -28,12 +29,13 @@ def test_new_non_interactive_without_answers_file_fails(tmp_path: Path) -> None:
     assert result.exit_code == 1
 
 
-def test_list_types_lists_both_project_types() -> None:
+def test_list_types_lists_every_project_type() -> None:
     result = runner.invoke(app, ['list-types'])
 
     assert result.exit_code == 0
     assert 'python_uv_tool' in result.output
     assert 'django_drf' in result.output
+    assert 'data_science' in result.output
 
 
 def test_list_skills_lists_optional_skills() -> None:
@@ -54,6 +56,21 @@ def test_version_flag_prints_a_version() -> None:
 def test_adopt_on_a_freshly_scaffolded_project_finds_nothing_to_change(tmp_path: Path) -> None:
     output_dir = tmp_path / 'widget-tool'
     runner.invoke(app, ['new', '--answers-file', str(FIXTURE), '--output-dir', str(output_dir)])
+
+    result = runner.invoke(app, ['adopt', str(output_dir), '--dry-run'])
+
+    assert result.exit_code == 0, result.output
+    assert 'already aligned' in result.output
+    assert 'conflict' not in result.output
+
+
+def test_adopt_on_a_freshly_scaffolded_notebook_project_finds_nothing_to_change(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / 'churn-lab'
+    runner.invoke(
+        app, ['new', '--answers-file', str(DATA_SCIENCE_FIXTURE), '--output-dir', str(output_dir)]
+    )
 
     result = runner.invoke(app, ['adopt', str(output_dir), '--dry-run'])
 

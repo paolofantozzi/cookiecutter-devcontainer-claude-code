@@ -1,0 +1,15 @@
+{
+  "project_name": "Churn Lab",
+  "git_remote_url": "",
+  "project_type": "data_science",
+  "gpu_enabled": false,
+  "optional_skills": ["commit-craftsman"],
+  "package_import_name": "churn_lab",
+  "python_version": "3.12",
+  "ml_stack": "analysis",
+  "compute_target": "cpu",
+  "experiment_tracking": "mlflow",
+  "license_id": "MIT",
+  "author_name": "Test Author",
+  "author_email": "author@example.com"
+}

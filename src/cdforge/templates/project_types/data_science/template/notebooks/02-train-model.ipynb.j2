@@ -1,0 +1,452 @@
+{% if ml_stack == 'analysis' %}
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "0",
+   "metadata": {},
+   "source": [
+    {{ ('# ' + project_name + ' — baseline model') | tojson }},
+    "\n",
+    "\n",
+    "A scikit-learn baseline on the processed data from `01-explore-data.ipynb`. Beat\n",
+    "this before reaching for anything bigger.\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "1",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import joblib\n",
+    "from sklearn.ensemble import RandomForestClassifier\n",
+    "from sklearn.metrics import accuracy_score\n",
+    "from sklearn.metrics import classification_report\n",
+    "from sklearn.pipeline import Pipeline\n",
+    "from sklearn.preprocessing import StandardScaler\n",
+    "\n",
+    "from {{ package_import_name }} import data\n",
+    "from {{ package_import_name }}.config import MODELS_DIR\n",
+    "from {{ package_import_name }}.config import RANDOM_SEED\n",
+    "from {{ package_import_name }}.config import ensure_dirs\n",
+    "from {{ package_import_name }}.seeding import set_seed\n",
+    "\n",
+    "ensure_dirs()\n",
+    "set_seed()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "2",
+   "metadata": {},
+   "source": [
+    "## Split\n",
+    "\n",
+    "The split lives in `data.split_train_valid_test`, not in the notebook: every notebook that\n",
+    "imports it gets exactly the same test set."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "frame = data.load_processed('dataset.parquet')\n",
+    "train, valid, test = data.split_train_valid_test(frame, stratify_on='target')\n",
+    "features = ['feature_a', 'feature_b']\n",
+    "\n",
+    "print(f'train={len(train)} valid={len(valid)} test={len(test)}')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4",
+   "metadata": {},
+   "source": [
+    "## Fit\n",
+    "\n",
+    "The scaler is inside the `Pipeline`, so it is fitted on the training fold only and travels\n",
+    "with the model when it is saved."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "5",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "model = Pipeline(\n",
+    "    [\n",
+    "        ('scale', StandardScaler()),\n",
+    "        ('forest', RandomForestClassifier(n_estimators=300, random_state=RANDOM_SEED)),\n",
+    "    ]\n",
+    ")\n",
+    "model.fit(train[features], train['target'])\n",
+    "\n",
+    "valid_accuracy = accuracy_score(valid['target'], model.predict(valid[features]))\n",
+    "print(f'valid accuracy: {valid_accuracy:.3f}')"
+   ]
+  },
+{% if experiment_tracking != 'none' %}
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "6",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from {{ package_import_name }}.tracking import log_metrics\n",
+    "from {{ package_import_name }}.tracking import start_run\n",
+    "\n",
+    "with start_run('random-forest-baseline', {'n_estimators': 300, 'seed': RANDOM_SEED}):\n",
+    "    log_metrics({'valid_accuracy': valid_accuracy})"
+   ]
+  },
+{% endif %}
+  {
+   "cell_type": "markdown",
+   "id": "7",
+   "metadata": {},
+   "source": [
+    "## Evaluate once, on the test set\n",
+    "\n",
+    "Only after the model is settled: every look at the test set spends a little of its value as\n",
+    "an estimate of real performance."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "8",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "print(classification_report(test['target'], model.predict(test[features])))\n",
+    "\n",
+    "path = MODELS_DIR / 'baseline.joblib'\n",
+    "joblib.dump(model, path)\n",
+    "print(f'saved {path}')"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "name": "python",
+   "version": "3"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
+{% endif %}
+{% if ml_stack == 'deep-learning' %}
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "0",
+   "metadata": {},
+   "source": [
+    {{ ('# ' + project_name + ' — PyTorch training') | tojson }},
+    "\n",
+    "\n",
+    "The loop itself lives in `src/{{ package_import_name }}/training.py` so it can be tested and\n",
+    "re-run from a script; the notebook is where the model and the hyper-parameters\n",
+    "are chosen.\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "1",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import torch\n",
+    "from torch import nn\n",
+    "from torch.utils.data import DataLoader\n",
+    "\n",
+    "from {{ package_import_name }} import training\n",
+    "from {{ package_import_name }}.config import ensure_dirs\n",
+    "from {{ package_import_name }}.seeding import set_seed\n",
+    "\n",
+    "ensure_dirs()\n",
+    "set_seed()\n",
+    "device = training.resolve_device()\n",
+    "print(f'training on {device}')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "2",
+   "metadata": {},
+   "source": [
+    "## Data\n",
+    "\n",
+    "`synthetic_datasets` keeps this notebook runnable offline. Swap in a real `Dataset` (or a\n",
+    "`TensorDataset` built from `data.load_processed(...)`) and nothing below changes."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "train_dataset, valid_dataset = training.synthetic_datasets(rows=2048, features=16)\n",
+    "valid_loader = DataLoader(valid_dataset, batch_size=64)\n",
+    "\n",
+    "print(f'train={len(train_dataset)} valid={len(valid_dataset)}')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4",
+   "metadata": {},
+   "source": [
+    "## Model"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "5",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "model = nn.Sequential(\n",
+    "    nn.Linear(16, 64),\n",
+    "    nn.ReLU(),\n",
+    "    nn.Dropout(0.1),\n",
+    "    nn.Linear(64, 1),\n",
+    ")\n",
+    "print(sum(p.numel() for p in model.parameters()), 'parameters')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "6",
+   "metadata": {},
+   "source": [
+    "## Train\n",
+    "\n",
+    "Per-epoch losses are printed{% if experiment_tracking != 'none' %} and logged to the tracker{% endif %}, and\n",
+    "the weights are checkpointed into `models/` (gitignored)."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "7",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "config = training.TrainingConfig(epochs=10, batch_size=64, learning_rate=1e-3)\n",
+    "checkpoint = training.train(\n",
+    "    model,\n",
+    "    train_dataset,\n",
+    "    valid_dataset,\n",
+    "    config,\n",
+    "    run_name='mlp-baseline',\n",
+    ")\n",
+    "print(checkpoint)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "8",
+   "metadata": {},
+   "source": [
+    "## Evaluate and reload\n",
+    "\n",
+    "Reloading the checkpoint into a fresh model is the cheapest way to find out that what was\n",
+    "saved is what you think it is."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "9",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "reloaded = nn.Sequential(\n",
+    "    nn.Linear(16, 64),\n",
+    "    nn.ReLU(),\n",
+    "    nn.Dropout(0.1),\n",
+    "    nn.Linear(64, 1),\n",
+    ")\n",
+    "reloaded.load_state_dict(torch.load(checkpoint, map_location=device))\n",
+    "reloaded.to(device)\n",
+    "\n",
+    "loss = training.evaluate(reloaded, valid_loader, nn.MSELoss(), device)\n",
+    "print(f'valid loss: {loss:.4f}')"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "name": "python",
+   "version": "3"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
+{% endif %}
+{% if ml_stack == 'transformers' %}
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "0",
+   "metadata": {},
+   "source": [
+    {{ ('# ' + project_name + ' — transformer fine-tuning') | tojson }},
+    "\n",
+    "\n",
+    "Fine-tunes a pretrained sequence classifier with the Hugging Face `Trainer`. The\n",
+    "model and the dataset are downloaded from the Hub on first use and cached, so the\n",
+    "first run needs network access (`huggingface.co` is on the egress allowlist when\n",
+    "the firewall is enabled).\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "1",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import torch\n",
+    "from datasets import load_dataset\n",
+    "from transformers import AutoTokenizer\n",
+    "from transformers import pipeline\n",
+    "\n",
+    "from {{ package_import_name }} import training\n",
+    "from {{ package_import_name }}.config import ensure_dirs\n",
+    "from {{ package_import_name }}.seeding import set_seed\n",
+    "\n",
+    "ensure_dirs()\n",
+    "set_seed()\n",
+    "\n",
+    "MODEL_NAME = 'distilbert-base-uncased'\n",
+    "print(f'device: {training.resolve_device()}')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "2",
+   "metadata": {},
+   "source": [
+    "## Dataset and tokenizer\n",
+    "\n",
+    "Look at the raw text and at what the tokenizer turns it into before training on it: this is\n",
+    "where truncation length and label mapping mistakes show up."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "3",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "dataset = load_dataset('imdb')\n",
+    "tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)\n",
+    "\n",
+    "example = dataset['train'][0]\n",
+    "print(example['label'], example['text'][:300])\n",
+    "print(tokenizer(example['text'], truncation=True, max_length=32))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4",
+   "metadata": {},
+   "source": [
+    "## Fine-tune\n",
+    "\n",
+    "`train_size` subsamples the training split so the first run finishes in minutes on a CPU;\n",
+    "pass `train_size=None` for the full dataset (and use a GPU for it)."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "5",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "output_dir = training.fine_tune_text_classifier(\n",
+    "    dataset_name='imdb',\n",
+    "    model_name=MODEL_NAME,\n",
+    "    train_size=2000,\n",
+    "    config=training.TrainingConfig(epochs=1, batch_size=16, learning_rate=2e-5),\n",
+    ")\n",
+    "print(output_dir)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "6",
+   "metadata": {},
+   "source": [
+    "## Try it\n",
+    "\n",
+    "The saved directory holds the weights *and* the tokenizer, so it can be loaded as a\n",
+    "pipeline directly — that is what deployment will do."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "7",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "classifier = pipeline(\n",
+    "    'text-classification',\n",
+    "    model=str(output_dir),\n",
+    "    device=0 if torch.cuda.is_available() else -1,\n",
+    ")\n",
+    "classifier(\n",
+    "    [\n",
+    "        'A quietly devastating film, and the best thing I have seen this year.',\n",
+    "        'Two hours I will never get back.',\n",
+    "    ]\n",
+    ")"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "name": "python",
+   "version": "3"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
+{% endif %}

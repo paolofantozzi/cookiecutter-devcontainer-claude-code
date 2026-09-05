@@ -1,0 +1,113 @@
+{% if experiment_tracking == 'mlflow' %}
+"""Experiment tracking with MLflow.
+
+Runs are recorded locally with no server and no network: metadata goes into `mlflow.db`
+(SQLite) and artifacts into `mlartifacts/`, both gitignored. Browse them with
+
+    uv run mlflow ui --backend-store-uri sqlite:///mlflow.db
+
+Set `MLFLOW_TRACKING_URI` to point at a real tracking server instead; that host also has to
+be on the egress allowlist when the network firewall is enabled.
+"""
+
+import os
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any
+
+import mlflow
+
+from {{ package_import_name }}.config import PROJECT_ROOT
+
+# MLflow's plain-directory store is deprecated, so the local backend is a SQLite file. Both
+# paths are absolute, so a run started from notebooks/ lands in the same place as one started
+# from the project root.
+DEFAULT_TRACKING_URI = 'sqlite:///' + str(PROJECT_ROOT / 'mlflow.db')
+ARTIFACTS_DIR = PROJECT_ROOT / 'mlartifacts'
+EXPERIMENT_NAME = '{{ project_slug }}'
+
+
+def _experiment_id() -> str:
+    """The experiment id, creating the experiment with a fixed artifact location if needed."""
+    experiment = mlflow.get_experiment_by_name(EXPERIMENT_NAME)
+    if experiment is not None:
+        return experiment.experiment_id
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+    return mlflow.create_experiment(EXPERIMENT_NAME, artifact_location=ARTIFACTS_DIR.as_uri())
+
+
+@contextmanager
+def start_run(name: str, params: dict[str, Any] | None = None) -> Iterator[None]:
+    """Open a tracking run, logging `params` at the start.
+
+    Everything logged inside the `with` block belongs to this run:
+
+        with start_run('baseline', {'lr': 3e-4}):
+            log_metrics({'valid_loss': 0.31}, step=1)
+    """
+    if 'MLFLOW_TRACKING_URI' not in os.environ:
+        mlflow.set_tracking_uri(DEFAULT_TRACKING_URI)
+    with mlflow.start_run(run_name=name, experiment_id=_experiment_id()):
+        if params:
+            mlflow.log_params(params)
+        yield
+
+
+def log_metrics(metrics: dict[str, float], step: int | None = None) -> None:
+    """Log metrics to the run that is currently open."""
+    mlflow.log_metrics(metrics, step=step)
+
+
+def log_artifact(path: str) -> None:
+    """Attach a file (a figure, a confusion matrix, a model card) to the current run."""
+    mlflow.log_artifact(path)
+{% endif %}
+{% if experiment_tracking == 'wandb' %}
+"""Experiment tracking with Weights & Biases.
+
+`wandb` uploads to wandb.ai, which needs `WANDB_API_KEY` (and, when the network firewall is
+enabled, `api.wandb.ai` in `.devcontainer/firewall-allow.txt` on the host). Set
+`WANDB_MODE=offline` to record runs locally into `wandb/` and sync them later.
+"""
+
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any
+
+import wandb
+
+from {{ package_import_name }}.config import PROJECT_ROOT
+
+PROJECT = '{{ project_slug }}'
+
+
+@contextmanager
+def start_run(name: str, params: dict[str, Any] | None = None) -> Iterator[None]:
+    """Open a tracking run, logging `params` as its config.
+
+    Everything logged inside the `with` block belongs to this run:
+
+        with start_run('baseline', {'lr': 3e-4}):
+            log_metrics({'valid_loss': 0.31}, step=1)
+    """
+    run = wandb.init(
+        project=PROJECT,
+        name=name,
+        config=params or {},
+        dir=str(PROJECT_ROOT),
+    )
+    try:
+        yield
+    finally:
+        run.finish()
+
+
+def log_metrics(metrics: dict[str, float], step: int | None = None) -> None:
+    """Log metrics to the run that is currently open."""
+    wandb.log(metrics, step=step)
+
+
+def log_artifact(path: str) -> None:
+    """Attach a file (a figure, a confusion matrix, a model card) to the current run."""
+    wandb.save(path)
+{% endif %}

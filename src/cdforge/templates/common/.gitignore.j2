@@ -26,3 +26,34 @@ media/
 staticfiles/
 .env
 {% endif %}
+{% if project_type == 'data_science' %}
+# Notebook checkpoints. Outputs are stripped from committed notebooks by the pre-commit
+# hook, so the .ipynb files themselves stay in git and stay reviewable.
+.ipynb_checkpoints/
+
+# Datasets, trained weights and generated figures: too large (and too regenerable) for git.
+# The directories themselves are kept via their .gitkeep; use git-lfs or an external store
+# for anything that has to be shared.
+/data/*
+!/data/.gitkeep
+/models/*
+!/models/.gitkeep
+/reports/figures/
+
+# Experiment tracking stores and training run artifacts.
+mlruns/
+mlartifacts/
+mlflow.db
+wandb/
+lightning_logs/
+runs/
+outputs/
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.safetensors
+
+# Hugging Face / dataset caches, when HF_HOME points inside the workspace.
+.cache/
+{% endif %}

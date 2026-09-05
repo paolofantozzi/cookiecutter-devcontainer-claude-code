@@ -1,0 +1,47 @@
+{% if include_torch %}
+from collections.abc import Iterator
+from contextlib import contextmanager
+
+from torch import nn
+from torch.utils.data import DataLoader
+
+from {{ package_import_name }} import training
+
+
+@contextmanager
+def _no_tracking(*args: object, **kwargs: object) -> Iterator[None]:
+    yield
+
+
+def test_resolve_device_falls_back_to_cpu() -> None:
+    assert training.resolve_device('cpu').type == 'cpu'
+    assert training.resolve_device().type in ('cpu', 'cuda')
+
+
+def test_training_reduces_the_loss_on_synthetic_data(tmp_path, monkeypatch) -> None:
+    # The loop is the part worth testing: given a learnable problem, a few epochs of it must
+    # leave the model better than it started. Tracking and the checkpoint go to tmp_path so
+    # the test writes nothing into the project.
+    monkeypatch.setattr(training, 'MODELS_DIR', tmp_path)
+    monkeypatch.setattr(training, 'start_run', _no_tracking, raising=False)
+    monkeypatch.setattr(training, 'log_metrics', lambda *a, **k: None, raising=False)
+
+    train_dataset, valid_dataset = training.synthetic_datasets(rows=128, features=4)
+    model = nn.Sequential(nn.Linear(4, 16), nn.ReLU(), nn.Linear(16, 1))
+    device = training.resolve_device('cpu')
+    loss_fn = nn.MSELoss()
+    valid_loader = DataLoader(valid_dataset, batch_size=32)
+    before = training.evaluate(model, valid_loader, loss_fn, device)
+
+    checkpoint = training.train(
+        model,
+        train_dataset,
+        valid_dataset,
+        training.TrainingConfig(epochs=3, device='cpu'),
+        run_name='test-run',
+    )
+    after = training.evaluate(model, valid_loader, loss_fn, device)
+
+    assert checkpoint.exists()
+    assert after < before
+{% endif %}

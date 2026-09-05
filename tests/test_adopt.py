@@ -231,6 +231,41 @@ def test_detect_answers_recognises_a_django_project(tmp_path: Path) -> None:
     assert detected['include_celery'] is True
 
 
+def test_detect_answers_recognises_a_notebook_project(tmp_path: Path) -> None:
+    project_dir = tmp_path / 'lab'
+    (project_dir / 'notebooks').mkdir(parents=True)
+    (project_dir / 'src' / 'lab').mkdir(parents=True)
+    (project_dir / 'src' / 'lab' / '__init__.py').write_text('')
+    (project_dir / 'notebooks' / '01-explore.ipynb').write_text('{"cells": []}\n')
+    (project_dir / 'pyproject.toml').write_text(
+        '[project]\nname = "lab"\nrequires-python = ">=3.12"\n'
+        'dependencies = ["pandas", "torch", "transformers", "wandb"]\n'
+    )
+
+    detected = detect_answers(project_dir)
+
+    assert detected['project_type'] == 'data_science'
+    assert detected['package_import_name'] == 'lab'
+    assert detected['python_version'] == '3.12'
+    assert detected['ml_stack'] == 'transformers'
+    # No CPU-only index pinned, so the default (CUDA) wheels are what this project uses.
+    assert detected['compute_target'] == 'cuda'
+    assert detected['experiment_tracking'] == 'wandb'
+
+
+def test_detect_answers_does_not_mistake_a_cli_tool_for_a_notebook_project(tmp_path: Path) -> None:
+    project_dir = tmp_path / 'tool'
+    (project_dir / 'src' / 'tool').mkdir(parents=True)
+    (project_dir / 'src' / 'tool' / '__init__.py').write_text('')
+    (project_dir / 'pyproject.toml').write_text(
+        '[project]\nname = "tool"\ndependencies = ["typer", "pandas"]\n'
+    )
+
+    detected = detect_answers(project_dir)
+
+    assert detected['project_type'] == 'python_uv_tool'
+
+
 def test_merge_helpers_keep_existing_content() -> None:
     merged = merge_gitignore('.venv/\n', '# comment\n.venv/\ndist/\n')
     assert merged.splitlines()[0] == '.venv/'

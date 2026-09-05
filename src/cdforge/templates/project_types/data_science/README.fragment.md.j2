@@ -1,0 +1,43 @@
+## Usage
+
+Open a notebook from `notebooks/` in VS Code and pick the project's `.venv` kernel, or start
+JupyterLab and use it in a browser:
+
+```console
+$ uv run jupyter lab --no-browser --ip=0.0.0.0 --port=8888
+```
+
+Port 8888 is forwarded to the host, so the URL JupyterLab prints works from your browser.
+
+- `notebooks/01-explore-data.ipynb` — load, inspect and visualise the data, then save a
+  processed version.
+- `notebooks/02-train-model.ipynb` — {% if ml_stack == 'analysis' %}a scikit-learn baseline on that processed data{% elif ml_stack == 'deep-learning' %}a PyTorch training run using the loop in `src/{{ package_import_name }}/training.py`{% else %}fine-tunes a Hugging Face sequence classifier{% endif %}.
+
+Reusable code lives in `src/{{ package_import_name }}/` (paths and seeds in `config.py`,
+loading and splitting in `data.py`{% if include_torch %}, the training loop in `training.py`{% endif %}), so notebooks stay
+short and the same split and seed are used everywhere.
+
+`data/`, `models/` and `reports/figures/` are gitignored working directories — datasets and
+weights do not belong in the repository.
+
+## Development
+
+```console
+$ uv run pytest          # run the test suite
+$ uv run ruff check .     # lint (notebooks included)
+$ uv run ruff format .    # format (notebooks included)
+```
+
+Committed notebooks carry **no outputs**: the pre-commit hook runs `nbstripout` over the
+staged `.ipynb` files and re-stages them, so a notebook diff stays reviewable.
+{% if experiment_tracking == 'mlflow' %}
+
+Experiment runs are tracked with MLflow into `mlflow.db` + `mlartifacts/` (no server
+needed); browse them with `uv run mlflow ui --backend-store-uri sqlite:///mlflow.db`.
+{% endif %}
+{% if experiment_tracking == 'wandb' %}
+
+Experiment runs are tracked with Weights & Biases. Set `WANDB_API_KEY` to upload them, or
+`WANDB_MODE=offline` to record them into `wandb/` and sync later.{% if firewall_enabled %} With the egress firewall
+on, add `api.wandb.ai` to `.devcontainer/firewall-allow.txt` on the host.{% endif %}
+{% endif %}

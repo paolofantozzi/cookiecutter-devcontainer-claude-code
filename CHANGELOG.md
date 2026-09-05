@@ -5,6 +5,43 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.14] - 2026-09-05
+
+### Added
+
+- New **`data_science` project type**: Jupyter notebooks plus a reusable `src/<package>/`
+  package, for data analysis, classical ML and transformer fine-tuning — all managed with
+  `uv` and running in the same sandboxed devcontainer as the other types.
+  - One question, `ml_stack`, selects a cumulative stack: `analysis`
+    (numpy/pandas/matplotlib/seaborn/scikit-learn/JupyterLab), `deep-learning` (+ PyTorch) or
+    `transformers` (+ Hugging Face transformers/datasets/accelerate/evaluate). `compute_target`
+    pins PyTorch to its CPU-only index or takes the default CUDA wheels, defaulting to `cuda`
+    when the project was scaffolded with GPU passthrough. `experiment_tracking` adds MLflow
+    (local SQLite store, no server) or Weights & Biases.
+  - The generated package ships `config.py` (project paths + `RANDOM_SEED`), `data.py`
+    (loading/saving and one shared train/validation/test split), `seeding.py`, and — for the
+    PyTorch stacks — `training.py` with a seeded, checkpointing training loop runnable as
+    `uv run python -m <package>.training` on synthetic data, plus
+    `fine_tune_text_classifier()` for Hugging Face sequence classifiers.
+  - Two generated notebooks (`01-explore-data.ipynb`, `02-train-model.ipynb`) that run top to
+    bottom offline, a `notebook-ml-conventions` skill, and gitignore entries that keep
+    datasets, checkpoints, figures and tracking stores out of git.
+- **Notebooks are treated as source code.** ruff is configured with
+  `extend-include = ["*.ipynb"]`, and the generated `.githooks/pre-commit` strips outputs from
+  staged notebooks with `nbstripout` and re-stages them, so notebook diffs stay reviewable and
+  cell outputs (which can carry data printed inside the container) never reach a commit.
+- `ProjectType` gained `forward_ports`, `vscode_extensions` and `extra_allowed_domains`, so a
+  type can declare the ports its devcontainer forwards (8888 for JupyterLab), the VS Code
+  extensions it needs (the Jupyter extension) and the hosts its toolchain fetches from
+  (`huggingface.co`, `download.pytorch.org`) — the last of which are added to the egress
+  firewall's allowlist when it is enabled.
+- `cdforge adopt` detects notebook projects (a `notebooks/` directory, or a
+  jupyter/torch/transformers dependency) along with their stack, compute target and tracking
+  backend.
+- `scripts/e2e.sh` variants `ds-analysis`, `ds-torch`, `ds-firewall` and `ds-adopt`, which
+  additionally execute a generated notebook and check the notebook-stripping pre-commit hook
+  inside the real container.
+
 ## [0.1.13] - 2026-09-05
 
 ### Added

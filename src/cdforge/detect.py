@@ -37,10 +37,44 @@ def _dependency_names(pyproject: dict[str, Any]) -> str:
     return ' '.join(chunks).lower()
 
 
+def _has_notebooks(project_dir: Path) -> bool:
+    notebooks = project_dir / 'notebooks'
+    if notebooks.is_dir() and any(notebooks.glob('*.ipynb')):
+        return True
+    return any(project_dir.glob('*.ipynb'))
+
+
 def _detect_project_type(project_dir: Path, deps: str) -> str:
     if (project_dir / 'manage.py').exists() or 'django' in deps:
         return 'django_drf'
+    # Notebooks, or a stack nobody installs for a CLI tool. Plain pandas/numpy is not
+    # enough: a command-line tool may well use them.
+    if _has_notebooks(project_dir) or any(
+        marker in deps for marker in ('jupyter', 'notebook', 'torch', 'transformers')
+    ):
+        return 'data_science'
     return 'python_uv_tool'
+
+
+def _detect_ml_stack(deps: str) -> str:
+    if 'transformers' in deps:
+        return 'transformers'
+    if 'torch' in deps:
+        return 'deep-learning'
+    return 'analysis'
+
+
+def _detect_compute_target(project_dir: Path) -> str:
+    """PyTorch's CPU-only index is pinned in pyproject.toml; anything else is the default
+    (CUDA-enabled) wheel."""
+    pyproject = project_dir / 'pyproject.toml'
+    if not pyproject.exists():
+        return 'cpu'
+    try:
+        text = pyproject.read_text(encoding='utf-8')
+    except OSError:
+        return 'cpu'
+    return 'cpu' if 'download.pytorch.org/whl/cpu' in text else 'cuda'
 
 
 def _detect_package_import_name(project_dir: Path) -> str:
@@ -133,7 +167,22 @@ def detect_answers(project_dir: Path) -> dict[str, Any]:
     detected.update(_detect_authors(pyproject))
     detected.update(_detect_devcontainer_answers(project_dir))
 
-    if project_type == 'python_uv_tool':
+    if project_type == 'data_science':
+        package = _detect_package_import_name(project_dir)
+        if package:
+            detected['package_import_name'] = package
+        python_version = _detect_python_version(pyproject)
+        if python_version:
+            detected['python_version'] = python_version
+        detected['ml_stack'] = _detect_ml_stack(deps)
+        detected['compute_target'] = _detect_compute_target(project_dir)
+        if 'mlflow' in deps:
+            detected['experiment_tracking'] = 'mlflow'
+        elif 'wandb' in deps:
+            detected['experiment_tracking'] = 'wandb'
+        else:
+            detected['experiment_tracking'] = 'none'
+    elif project_type == 'python_uv_tool':
         package = _detect_package_import_name(project_dir)
         if package:
             detected['package_import_name'] = package

@@ -31,6 +31,16 @@
     "gpu": "optional"
   },
 {% endif %}
+{% if vscode_extensions %}
+  "customizations": {
+    "vscode": {
+      "extensions": {{ vscode_extensions | tojson }}
+    }
+  },
+{% endif %}
+{% if forward_ports %}
+  "forwardPorts": {{ forward_ports | tojson }},
+{% endif %}
 {% if run_args %}
   "runArgs": {{ run_args | tojson }},
 {% endif %}

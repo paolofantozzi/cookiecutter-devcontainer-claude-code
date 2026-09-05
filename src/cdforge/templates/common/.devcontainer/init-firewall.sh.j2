@@ -49,6 +49,9 @@ ALLOWED_DOMAINS=(
   'astral.sh'
   'deb.debian.org'
   'security.debian.org'
+{% for domain in extra_allowed_domains %}
+  '{{ domain }}'
+{% endfor %}
 )
 
 if [ "$(id -u)" -ne 0 ]; then

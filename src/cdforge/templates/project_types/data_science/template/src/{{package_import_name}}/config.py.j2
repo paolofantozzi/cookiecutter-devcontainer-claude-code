@@ -1,0 +1,37 @@
+"""Project paths and constants.
+
+Notebooks and scripts import these instead of hard-coding relative paths, so a notebook
+works the same whether it is run from `notebooks/`, from the project root, or by pytest.
+"""
+
+from pathlib import Path
+
+# src/{{ package_import_name }}/config.py -> src/{{ package_import_name }} -> src -> project root.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+DATA_DIR = PROJECT_ROOT / 'data'
+RAW_DATA_DIR = DATA_DIR / 'raw'
+INTERIM_DATA_DIR = DATA_DIR / 'interim'
+PROCESSED_DATA_DIR = DATA_DIR / 'processed'
+MODELS_DIR = PROJECT_ROOT / 'models'
+FIGURES_DIR = PROJECT_ROOT / 'reports' / 'figures'
+
+# Everything that draws a random number reads this, so a run can be reproduced.
+RANDOM_SEED = 42
+
+MANAGED_DIRS = (
+    RAW_DATA_DIR,
+    INTERIM_DATA_DIR,
+    PROCESSED_DATA_DIR,
+    MODELS_DIR,
+    FIGURES_DIR,
+)
+
+
+def ensure_dirs() -> None:
+    """Create the data/model/figure directories if they do not exist yet.
+
+    Their contents are gitignored, so a fresh clone has only the top-level placeholders.
+    """
+    for directory in MANAGED_DIRS:
+        directory.mkdir(parents=True, exist_ok=True)

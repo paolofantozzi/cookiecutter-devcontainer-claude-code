@@ -1,0 +1,71 @@
+## Project layout
+
+- `notebooks/` — numbered Jupyter notebooks, one per step (`01-explore-data.ipynb`,
+  `02-train-model.ipynb`). They are the *exploration* surface: read them top to bottom, and
+  keep them runnable top to bottom.
+- `src/{{ package_import_name }}/` — the package the notebooks import. Anything a second
+  notebook would copy belongs here:
+  - `config.py` — project paths (`DATA_DIR`, `MODELS_DIR`, `FIGURES_DIR`) and `RANDOM_SEED`;
+    `ensure_dirs()` creates the gitignored directories.
+  - `data.py` — loading, saving and the train/validation/test split, so every notebook
+    agrees on what the test set is.
+  - `seeding.py` — `set_seed()`, which seeds `random`, NumPy{% if include_torch %} and PyTorch{% endif %}.
+{% if include_torch %}
+  - `training.py` — the training loop, its `TrainingConfig`, checkpointing to `models/`{% if include_transformers %},
+    and `fine_tune_text_classifier()` for Hugging Face sequence classifiers{% endif %}. Runnable as
+    `uv run python -m {{ package_import_name }}.training` (synthetic data, no downloads).
+{% endif %}
+{% if experiment_tracking != 'none' %}
+  - `tracking.py` — `start_run()` / `log_metrics()` wrapping {% if experiment_tracking == 'mlflow' %}MLflow{% else %}Weights & Biases{% endif %}.
+{% endif %}
+- `tests/` — pytest suite for the package. Notebooks are not tested; the code they import is,
+  which is the reason logic moves out of them.
+- `data/`, `models/`, `reports/figures/` — gitignored working directories. Never commit
+  datasets, weights or generated figures.
+
+## Notebook discipline
+
+- **Outputs are stripped before every commit** by `.githooks/pre-commit` (`nbstripout`), so a
+  notebook diff is a diff of its code. Do not re-add outputs by hand.
+- Notebooks are linted and formatted like the rest of the code (`ruff` is configured with
+  `extend-include = ["*.ipynb"]`), so the same style rules apply inside cells: single quotes,
+  one import per line.
+- A notebook must run top to bottom in a fresh kernel. When a cell stops being exploratory —
+  it is re-run, parameterised, or copied elsewhere — move it into
+  `src/{{ package_import_name }}/` and import it back.
+- Start every notebook with `set_seed()` and use `RANDOM_SEED` for anything that samples, so
+  a result can be reproduced.
+
+## Running things
+
+- `uv run jupyter lab --no-browser --ip=0.0.0.0 --port=8888` — JupyterLab; port 8888 is
+  forwarded to the host. Inside VS Code you can also just open a notebook and pick the
+  project's `.venv` kernel.
+- `uv run pytest` — the test suite.
+- `uv run ruff check .` / `uv run ruff format .` — lint / format (notebooks included).
+{% if include_torch %}
+- `uv run python -m {{ package_import_name }}.training` — smoke-test the training loop.
+{% endif %}
+{% if experiment_tracking == 'mlflow' %}
+- `uv run mlflow ui --backend-store-uri sqlite:///mlflow.db` — browse the recorded runs.
+{% endif %}
+
+## Environment notes
+
+{% if include_torch %}
+- PyTorch is installed as the **{{ compute_target }}** build{% if compute_target == 'cpu' %} (pinned to PyTorch's CPU-only
+  index in `pyproject.toml`, which is why it is a few hundred MB rather than several GB){% endif %}.
+{% if gpu_enabled %}
+- The devcontainer has GPU passthrough, but the host may still not have a usable GPU: check
+  `torch.cuda.is_available()` rather than assuming, and never hard-code `.cuda()`.
+{% else %}
+- The devcontainer has **no** GPU passthrough, so everything runs on the CPU. Changing that
+  is a host-side `cdforge adopt` away, and cannot be done from in here.
+{% endif %}
+{% endif %}
+- Dependencies are added with `uv add` (not `pip install`), including inside a notebook: a
+  `!pip install` in a cell does not survive a rebuild and is invisible to `uv.lock`.
+{% if include_transformers %}
+- Hub downloads (models, datasets) are cached under `HF_HOME`; the first cell that touches
+  the Hub needs network access.
+{% endif %}

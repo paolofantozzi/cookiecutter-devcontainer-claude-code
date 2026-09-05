@@ -1,0 +1,12 @@
+
+# Notebook outputs never reach a commit: they make diffs unreadable and can carry data (or
+# credentials printed by a cell) out of the container. Stripped files are re-staged, so the
+# commit contains exactly what is left on disk.
+staged_notebooks="$(git diff --cached --name-only --diff-filter=ACM -- '*.ipynb')"
+if [ -n "$staged_notebooks" ]; then
+  echo "Stripping outputs from staged notebooks..."
+  echo "$staged_notebooks" | tr '\n' '\0' | xargs -0 uv run nbstripout
+  echo "$staged_notebooks" | tr '\n' '\0' | xargs -0 git add
+fi
+
+uv run pytest

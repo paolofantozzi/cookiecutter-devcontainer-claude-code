@@ -1,0 +1,17 @@
+import numpy as np
+
+from {{ package_import_name }}.config import RANDOM_SEED
+from {{ package_import_name }}.seeding import set_seed
+
+
+def test_set_seed_makes_numpy_reproducible() -> None:
+    set_seed(123)
+    first = np.random.rand(5)
+    set_seed(123)
+    second = np.random.rand(5)
+
+    assert np.array_equal(first, second)
+
+
+def test_set_seed_defaults_to_the_project_seed() -> None:
+    assert set_seed() == RANDOM_SEED

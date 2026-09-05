@@ -1,0 +1,77 @@
+---
+name: notebook-ml-conventions
+description: Conventions for {{ project_name }} - notebooks stay thin, reusable code lives in src/, runs are seeded and tracked, data and weights never enter git.
+---
+
+This project is a notebook-driven data science / ML project managed with `uv`. Follow these
+conventions for every change.
+
+## Where code goes
+
+- Notebooks in `notebooks/` are for *exploration and narrative*: load, look, decide. They are
+  numbered in the order they are meant to be read.
+- Anything a second notebook would copy — a loader, a split, a metric, a training loop —
+  moves into `src/{{ package_import_name }}/` and is imported back. That is the code that
+  gets tests; notebooks do not.
+- A notebook must run top to bottom in a fresh kernel. If it only works when cells are run
+  out of order, fix the notebook rather than documenting the order.
+- Never use `!pip install` in a cell: dependencies are added with `uv add`, so they are
+  locked and survive a container rebuild.
+
+## Notebooks in git
+
+- Committed notebooks contain **no outputs**. `.githooks/pre-commit` runs `nbstripout` on the
+  staged `.ipynb` files and re-stages them; do not fight it, and do not commit outputs by
+  editing the JSON.
+- Notebooks are linted and formatted with everything else (`ruff` has
+  `extend-include = ["*.ipynb"]`): single-quoted strings, one import per line, sorted.
+- Keep cells small enough that the diff of a cell is readable.
+
+## Reproducibility
+
+- Call `set_seed()` at the top of every notebook and pass `RANDOM_SEED` (from
+  `{{ package_import_name }}.config`) to anything that samples, splits or initialises weights.
+- Split data only through `data.split_train_valid_test`, so every notebook means the same
+  thing by "the test set". Look at the test set once, at the end.
+- Read and write paths through `{{ package_import_name }}.config` (`RAW_DATA_DIR`,
+  `PROCESSED_DATA_DIR`, `MODELS_DIR`, `FIGURES_DIR`) instead of relative paths, so the same
+  code works from a notebook, a script and a test.
+{% if experiment_tracking != 'none' %}
+- Record every training run through `{{ package_import_name }}.tracking.start_run(...)`, with
+  the hyper-parameters as its params: a result that was not logged did not happen.
+{% endif %}
+
+## Data, models and figures
+
+- `data/`, `models/` and `reports/figures/` are gitignored. Never commit a dataset, a
+  checkpoint or a generated figure — regenerate them, or store them outside the repository
+  (git-lfs, an object store, the Hugging Face Hub).
+- Write derived data with `data.save_processed(...)` and prefer Parquet over CSV for anything
+  read back by code: it keeps dtypes.
+{% if include_torch %}
+
+## Training
+
+- The loop lives in `{{ package_import_name }}.training`, not in a notebook: notebooks choose
+  the model and the hyper-parameters and call `train(...)`.
+- Every run is seeded, validated once per epoch, and checkpointed into `models/`.
+{% if gpu_enabled %}
+- `resolve_device()` decides between CPU and CUDA — never hard-code `.cuda()`. This container
+  has GPU passthrough, but the host may still not have a usable GPU.
+{% else %}
+- `resolve_device()` decides between CPU and CUDA — never hard-code `.cuda()`. This container
+  has no GPU passthrough, so everything must also run on the CPU.
+{% endif %}
+- Keep `uv run python -m {{ package_import_name }}.training` working: it trains on synthetic
+  data with no downloads and is the fastest way to check the loop still runs.
+{% endif %}
+{% if include_transformers %}
+- Hub models and datasets are downloaded on first use and cached; keep the cheap
+  `train_size`-limited path in the notebook working so someone can rerun it without a GPU.
+{% endif %}
+
+## Testing
+
+- New behaviour in `src/{{ package_import_name }}/` needs a matching test in `tests/`.
+- Tests must not download anything, must not need a GPU, and must not write into `data/` or
+  `models/` — use `tmp_path` and monkeypatch the path constants.

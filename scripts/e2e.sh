@@ -61,8 +61,12 @@ VARIANTS=(
   "py-firewall|python_uv_tool|network_firewall=allowlist"
   "py-firewall-strict|python_uv_tool|network_firewall=strict"
   "dj-firewall|django_drf|database=postgres include_celery=true network_firewall=allowlist"
+  "ds-analysis|data_science|"
+  "ds-torch|data_science|ml_stack=deep-learning"
+  "ds-firewall|data_science|network_firewall=allowlist"
   "py-adopt|python_uv_tool||adopt"
   "dj-adopt|django_drf|database=postgres include_celery=false|adopt"
+  "ds-adopt|data_science||adopt"
 )
 
 if [ "${LIST_ONLY:-0}" = 1 ]; then
@@ -114,6 +118,9 @@ a = {
 if ptype == "python_uv_tool":
     a.update(package_import_name="app_tool", cli_command_name="app-tool",
              python_version="3.12", include_mypy=True, license_id="MIT")
+elif ptype == "data_science":
+    a.update(package_import_name="app_lab", python_version="3.12", ml_stack="analysis",
+             compute_target="cpu", experiment_tracking="mlflow", license_id="MIT")
 else:
     a.update(django_project_slug="app_config", initial_app_name="core",
              database="postgres", auth_method="simplejwt", include_celery=False,
@@ -150,6 +157,26 @@ if uv run pytest -q >/tmp/e2e_pytest.log 2>&1; then ok "pytest"; else bad "pytes
 
 if [ "$E2E_PTYPE" = "django_drf" ]; then
   if uv run python manage.py migrate --noinput >/tmp/e2e_migrate.log 2>&1; then ok "django migrate"; else bad "django migrate" "failed"; tail -8 /tmp/e2e_migrate.log; fi
+fi
+
+if [ "$E2E_PTYPE" = "data_science" ]; then
+  # The notebooks must run top to bottom in the container as generated (no downloads).
+  if MPLBACKEND=Agg uv run jupyter nbconvert --to notebook --execute --stdout \
+       notebooks/01-explore-data.ipynb >/dev/null 2>/tmp/e2e_nb.log; then
+    ok "notebook 01 executes"
+  else
+    bad "notebook 01 executes" "nbconvert failed"; tail -8 /tmp/e2e_nb.log
+  fi
+  # The pre-commit hook must strip outputs from a staged notebook.
+  python3 -c "import json,sys; p='notebooks/01-explore-data.ipynb'; nb=json.load(open(p)); [c.update(outputs=[{'name':'stdout','output_type':'stream','text':['leak\n']}], execution_count=1) for c in nb['cells'] if c['cell_type']=='code']; json.dump(nb, open(p,'w'))"
+  git config --global --add safe.directory "$PWD" >/dev/null 2>&1 || true
+  git add notebooks/01-explore-data.ipynb >/dev/null 2>&1
+  if bash .githooks/pre-commit >/tmp/e2e_hook.log 2>&1 && ! grep -q leak notebooks/01-explore-data.ipynb; then
+    ok "pre-commit strips notebooks"
+  else
+    bad "pre-commit strips notebooks" "outputs survived"; tail -8 /tmp/e2e_hook.log
+  fi
+  git checkout -- notebooks/01-explore-data.ipynb >/dev/null 2>&1 || true
 fi
 
 case "$E2E_MODE" in

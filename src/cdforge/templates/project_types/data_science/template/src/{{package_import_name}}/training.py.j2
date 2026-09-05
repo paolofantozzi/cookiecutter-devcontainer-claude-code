@@ -1,0 +1,226 @@
+{% if include_torch %}
+"""Training entry points.
+
+The loop below is deliberately plain PyTorch: it is the smallest thing that already has the
+pieces every real training run needs — a seeded start, a validation pass per epoch, metrics
+going to the tracker{% if experiment_tracking == 'none' %} (add one when you need it){% endif %}, and a checkpoint written to `models/`. Replace the
+model and the datasets; keep the structure.
+
+Run it as a smoke test with `uv run python -m {{ package_import_name }}.training`, which
+trains on synthetic data and downloads nothing.
+"""
+
+from dataclasses import dataclass
+from pathlib import Path
+
+import torch
+from torch import nn
+from torch.utils.data import DataLoader
+from torch.utils.data import TensorDataset
+
+from {{ package_import_name }}.config import MODELS_DIR
+from {{ package_import_name }}.config import RANDOM_SEED
+from {{ package_import_name }}.seeding import set_seed
+{% if experiment_tracking != 'none' %}
+from {{ package_import_name }}.tracking import log_metrics
+from {{ package_import_name }}.tracking import start_run
+{% endif %}
+
+
+@dataclass
+class TrainingConfig:
+    """Everything a run needs to be reproducible; log it as the run's parameters."""
+
+    epochs: int = 5
+    batch_size: int = 32
+    learning_rate: float = 1e-3
+    seed: int = RANDOM_SEED
+    device: str = 'auto'
+
+
+def resolve_device(preference: str = 'auto') -> torch.device:
+    """Return the device to train on. 'auto' picks CUDA when it is actually available."""
+    if preference != 'auto':
+        return torch.device(preference)
+    return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+def train_one_epoch(
+    model: nn.Module,
+    loader: DataLoader,
+    optimizer: torch.optim.Optimizer,
+    loss_fn: nn.Module,
+    device: torch.device,
+) -> float:
+    """Run one training epoch and return the mean loss over it."""
+    model.train()
+    total = 0.0
+    for inputs, targets in loader:
+        inputs, targets = inputs.to(device), targets.to(device)
+        optimizer.zero_grad()
+        loss = loss_fn(model(inputs), targets)
+        loss.backward()
+        optimizer.step()
+        total += loss.item() * inputs.size(0)
+    return total / len(loader.dataset)
+
+
+@torch.no_grad()
+def evaluate(
+    model: nn.Module,
+    loader: DataLoader,
+    loss_fn: nn.Module,
+    device: torch.device,
+) -> float:
+    """Return the mean loss over a dataset without updating the model."""
+    model.eval()
+    total = 0.0
+    for inputs, targets in loader:
+        inputs, targets = inputs.to(device), targets.to(device)
+        total += loss_fn(model(inputs), targets).item() * inputs.size(0)
+    return total / len(loader.dataset)
+
+
+def train(
+    model: nn.Module,
+    train_dataset: TensorDataset,
+    valid_dataset: TensorDataset,
+    config: TrainingConfig | None = None,
+    *,
+    run_name: str = 'baseline',
+) -> Path:
+    """Train `model`, log a metric pair per epoch, and return the checkpoint path."""
+    config = config or TrainingConfig()
+    set_seed(config.seed)
+    device = resolve_device(config.device)
+    model.to(device)
+
+    train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
+    valid_loader = DataLoader(valid_dataset, batch_size=config.batch_size)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    loss_fn = nn.MSELoss()
+
+    checkpoint = MODELS_DIR / f'{run_name}.pt'
+    checkpoint.parent.mkdir(parents=True, exist_ok=True)
+{% if experiment_tracking != 'none' %}
+
+    with start_run(run_name, {'device': str(device), **vars(config)}):
+        for epoch in range(1, config.epochs + 1):
+            train_loss = train_one_epoch(model, train_loader, optimizer, loss_fn, device)
+            valid_loss = evaluate(model, valid_loader, loss_fn, device)
+            log_metrics({'train_loss': train_loss, 'valid_loss': valid_loss}, step=epoch)
+            print(f'epoch {epoch}: train_loss={train_loss:.4f} valid_loss={valid_loss:.4f}')
+{% else %}
+
+    for epoch in range(1, config.epochs + 1):
+        train_loss = train_one_epoch(model, train_loader, optimizer, loss_fn, device)
+        valid_loss = evaluate(model, valid_loader, loss_fn, device)
+        print(f'epoch {epoch}: train_loss={train_loss:.4f} valid_loss={valid_loss:.4f}')
+{% endif %}
+
+    torch.save(model.state_dict(), checkpoint)
+    return checkpoint
+{% if include_transformers %}
+
+
+def fine_tune_text_classifier(
+    dataset_name: str = 'imdb',
+    model_name: str = 'distilbert-base-uncased',
+    *,
+    num_labels: int = 2,
+    max_length: int = 256,
+    train_size: int | None = 2000,
+    config: TrainingConfig | None = None,
+) -> Path:
+    """Fine-tune a Hugging Face sequence classifier and return the output directory.
+
+    Both `dataset_name` and `model_name` are downloaded from the Hugging Face Hub the first
+    time (cached afterwards under `HF_HOME`), so this needs network access — with the egress
+    firewall on, `huggingface.co` is already allowlisted. `train_size` subsamples the training
+    split so the first run finishes in minutes; pass None for the whole thing.
+    """
+    from datasets import load_dataset
+    from transformers import AutoModelForSequenceClassification
+    from transformers import AutoTokenizer
+    from transformers import Trainer
+    from transformers import TrainingArguments
+
+    config = config or TrainingConfig(epochs=1, batch_size=16, learning_rate=2e-5)
+    set_seed(config.seed)
+
+    dataset = load_dataset(dataset_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    def tokenize(batch: dict) -> dict:
+        return tokenizer(batch['text'], truncation=True, max_length=max_length)
+
+    tokenized = dataset.map(tokenize, batched=True)
+    train_split = tokenized['train'].shuffle(seed=config.seed)
+    if train_size is not None:
+        train_split = train_split.select(range(min(train_size, len(train_split))))
+    eval_split = tokenized.get('validation') or tokenized['test']
+
+    model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
+    output_dir = MODELS_DIR / model_name.replace('/', '__')
+    arguments = TrainingArguments(
+        output_dir=str(output_dir),
+        num_train_epochs=config.epochs,
+        per_device_train_batch_size=config.batch_size,
+        per_device_eval_batch_size=config.batch_size,
+        learning_rate=config.learning_rate,
+        eval_strategy='epoch',
+        save_strategy='epoch',
+        seed=config.seed,
+        # bf16 needs an Ampere-or-newer GPU; on CPU this stays off.
+        bf16=torch.cuda.is_available() and torch.cuda.is_bf16_supported(),
+{% if experiment_tracking == 'mlflow' %}
+        report_to=['mlflow'],
+{% elif experiment_tracking == 'wandb' %}
+        report_to=['wandb'],
+{% else %}
+        report_to=[],
+{% endif %}
+    )
+    trainer = Trainer(
+        model=model,
+        args=arguments,
+        train_dataset=train_split,
+        eval_dataset=eval_split,
+        processing_class=tokenizer,
+    )
+    trainer.train()
+    trainer.save_model(str(output_dir))
+    tokenizer.save_pretrained(str(output_dir))
+    return output_dir
+{% endif %}
+
+
+def synthetic_datasets(
+    rows: int = 512,
+    features: int = 8,
+    seed: int = RANDOM_SEED,
+) -> tuple[TensorDataset, TensorDataset]:
+    """A tiny linear-regression problem, so the loop above can be run end to end offline."""
+    generator = torch.Generator().manual_seed(seed)
+    inputs = torch.randn(rows, features, generator=generator)
+    weights = torch.randn(features, 1, generator=generator)
+    targets = inputs @ weights + 0.1 * torch.randn(rows, 1, generator=generator)
+    split = int(rows * 0.8)
+    return (
+        TensorDataset(inputs[:split], targets[:split]),
+        TensorDataset(inputs[split:], targets[split:]),
+    )
+
+
+def main() -> None:
+    """Smoke-test the training loop on synthetic data."""
+    train_dataset, valid_dataset = synthetic_datasets()
+    features = train_dataset.tensors[0].shape[1]
+    model = nn.Sequential(nn.Linear(features, 32), nn.ReLU(), nn.Linear(32, 1))
+    checkpoint = train(model, train_dataset, valid_dataset, TrainingConfig(epochs=2))
+    print(f'checkpoint written to {checkpoint}')
+
+
+if __name__ == '__main__':
+    main()
+{% endif %}

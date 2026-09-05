@@ -1,0 +1,58 @@
+import pandas as pd
+import pytest
+
+from {{ package_import_name }} import data
+
+
+@pytest.fixture
+def frame() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            'feature': range(100),
+            'label': [0, 1] * 50,
+        }
+    )
+
+
+def test_read_table_reads_csv_and_parquet(tmp_path, frame: pd.DataFrame) -> None:
+    csv_path = tmp_path / 'sample.csv'
+    parquet_path = tmp_path / 'sample.parquet'
+    frame.to_csv(csv_path, index=False)
+    frame.to_parquet(parquet_path, index=False)
+
+    assert data.read_table(csv_path).equals(frame)
+    assert data.read_table(parquet_path).equals(frame)
+
+
+def test_read_table_rejects_unknown_formats(tmp_path) -> None:
+    with pytest.raises(ValueError, match='Unsupported data format'):
+        data.read_table(tmp_path / 'sample.xlsx')
+
+
+def test_save_processed_roundtrips(tmp_path, monkeypatch, frame: pd.DataFrame) -> None:
+    monkeypatch.setattr(data, 'PROCESSED_DATA_DIR', tmp_path)
+
+    path = data.save_processed(frame, 'sample.parquet')
+
+    assert data.read_table(path).equals(frame)
+
+
+def test_split_is_disjoint_and_sized_as_asked(frame: pd.DataFrame) -> None:
+    train, valid, test = data.split_train_valid_test(frame, valid_size=0.2, test_size=0.2)
+
+    assert len(train) == 60
+    assert len(valid) == 20
+    assert len(test) == 20
+    assert len(set(train.index) & set(valid.index) & set(test.index)) == 0
+
+
+def test_split_is_reproducible_for_a_given_seed(frame: pd.DataFrame) -> None:
+    first, _, _ = data.split_train_valid_test(frame, seed=7)
+    second, _, _ = data.split_train_valid_test(frame, seed=7)
+
+    assert list(first.index) == list(second.index)
+
+
+def test_split_rejects_impossible_proportions(frame: pd.DataFrame) -> None:
+    with pytest.raises(ValueError, match='between 0 and 1'):
+        data.split_train_valid_test(frame, valid_size=0.6, test_size=0.6)

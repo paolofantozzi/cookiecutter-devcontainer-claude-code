@@ -35,7 +35,8 @@ installed on your host at all.
   which is how the *host's* own listening ports are reachable from an ordinary devcontainer.
   `strict` mode additionally removes the base image's passwordless `sudo`, so the rules cannot
   be flushed from inside.
-- Optional GPU passthrough for the devcontainer itself, chosen at scaffold time.
+- Optional GPU passthrough for the devcontainer itself, chosen at scaffold time — which is
+  also what the `data_science` type defaults its PyTorch build (CUDA vs CPU-only wheels) to.
 - A `.githooks/pre-commit` hook that runs the linter and the full test suite before any
   commit is accepted.
 - A `CLAUDE.md` telling the embedded Claude Code to keep itself, `README.md`,
@@ -48,6 +49,7 @@ installed on your host at all.
 | --- | --- |
 | `python_uv_tool` | A `uv`-managed Python CLI (Typer), ruff-formatted, pytest tests. |
 | `django_drf` | A Django REST Framework API: pytest-django, optional Postgres/Redis/Celery as unprivileged sibling containers via the Dev Containers Docker Compose workflow, JWT or session auth, optional drf-spectacular docs. |
+| `data_science` | Jupyter notebooks plus a reusable `src/` package for data analysis and model training: numpy/pandas/scikit-learn, optionally PyTorch (CPU or CUDA wheels) and the Hugging Face transformers stack, MLflow or W&B tracking, notebooks linted by ruff and stripped of outputs before every commit. |
 
 Run `cdforge list-types` to see this list from the CLI, and `cdforge list-skills` for the
 optional Claude Code skills you can add on top of the mandatory ones.

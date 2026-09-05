@@ -1,0 +1,15 @@
+from {{ package_import_name }} import config
+
+
+def test_project_root_is_the_repository_root() -> None:
+    # The paths are resolved from the package location, so they must still point at the
+    # project when a notebook is run from notebooks/ rather than from the root.
+    assert (config.PROJECT_ROOT / 'pyproject.toml').exists()
+    assert config.DATA_DIR.parent == config.PROJECT_ROOT
+
+
+def test_ensure_dirs_creates_every_managed_directory() -> None:
+    config.ensure_dirs()
+
+    for directory in config.MANAGED_DIRS:
+        assert directory.is_dir(), f'{directory} was not created'
