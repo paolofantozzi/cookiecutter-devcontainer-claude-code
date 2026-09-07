@@ -28,8 +28,9 @@ installed on your host at all.
 - Login and conversation memory persist per project in `.devcontainer/claude-home/`
   (gitignored) — sign in once, it survives container rebuilds.
 - Every terminal session starts in Claude Code's `auto` permission mode; pushing is
-  discouraged by a `permissions.deny` entry and a `pre-push` hook, and prevented in practice
-  because no push credentials are mounted into the container.
+  discouraged by a `permissions.deny` entry and a `pre-push` hook that refuses pushes from
+  inside the devcontainer (but not from the host), and prevented in practice because no push
+  credentials are mounted into the container.
 - **Optional egress firewall**, off by default: `allowlist` mode installs an iptables script
   into the image that rejects everything except DNS, the container's own networks, and an
   allowlist (Anthropic, GitHub, PyPI, npm, Debian) — including the Docker bridge gateway,

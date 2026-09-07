@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 # Defense-in-depth guard: this project is meant to be developed by Claude Code inside the
 # devcontainer, and commits are supposed to stay local until a human pushes them. This hook
-# refuses every push so an automated agent cannot publish work on its own.
+# refuses a push when it runs inside the devcontainer so an automated agent cannot publish
+# work on its own.
+#
+# `core.hooksPath` is a repository setting shared by the host and the container, so the hook
+# is installed in both. It keys off `CDFORGE_DEVCONTAINER` (set in devcontainer.json's
+# `containerEnv`) to stay out of the way on the host, where a human is expected to push.
 #
 # NOTE: this is a best-effort guardrail, not a security boundary — it can be bypassed with
-# `git push --no-verify` or by unsetting core.hooksPath. The real reason the container
-# cannot push is that it holds no push credentials (no SSH keys, tokens, or credential
-# helpers are mounted into it). A human pushes from the host, where the hook does not run.
-echo "pre-push hook: pushing is disabled in this devcontainer. A human should push from the host." >&2
-exit 1
+# `git push --no-verify`, by unsetting the variable, or by unsetting core.hooksPath. The
+# real reason the container cannot push is that it holds no push credentials (no SSH keys,
+# tokens, or credential helpers are mounted into it).
+if [ -n "${CDFORGE_DEVCONTAINER:-}" ]; then
+  echo "pre-push hook: pushing is disabled inside this devcontainer. A human should push from the host." >&2
+  exit 1
+fi
+exit 0

@@ -198,7 +198,10 @@ for the full reasoning if changing them:
   crafted answer (e.g. `project_name`) cannot inject devcontainer keys.
 - The "never push" rule is defended in depth (a `permissions.deny` glob plus a
   `.githooks/pre-push` hook) but its real basis is that no push credentials are mounted into
-  the container. Keep the docs honest that the deny/hook are best-effort.
+  the container. Keep the docs honest that the deny/hook are best-effort. `core.hooksPath`
+  is a repo-level setting shared by host and container, so the `pre-push` hook keys off the
+  `CDFORGE_DEVCONTAINER` env var (set in `devcontainer.json`'s `containerEnv`): it blocks a
+  push from inside the sandbox and is a no-op on the host, where a human is meant to push.
 - **The sandbox is a filesystem sandbox by default; the network is opt-in.** A devcontainer
   sits on an ordinary Docker bridge, so without a firewall it reaches the internet, the LAN,
   and the *host itself* at the bridge gateway (the host's own listening ports answer from

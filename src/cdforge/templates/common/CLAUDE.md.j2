@@ -63,9 +63,10 @@ container:
 {% endif %}
 - Starts every terminal session in Claude Code's `auto` permission mode, so commands run
   without interactive approval prompts. `git push` is discouraged at multiple layers (a
-  `permissions.deny` entry plus a `.githooks/pre-push` hook that refuses pushes); the real
-  reason it cannot push is that no push credentials are mounted into the container. A human
-  pushes from the host.
+  `permissions.deny` entry plus a `.githooks/pre-push` hook that refuses pushes from inside
+  the devcontainer — it keys off the `CDFORGE_DEVCONTAINER` env var, so the same hook stays
+  out of the way when a human pushes from the host); the real reason it cannot push is that
+  no push credentials are mounted into the container.
 
 ## Generated, managed files
 

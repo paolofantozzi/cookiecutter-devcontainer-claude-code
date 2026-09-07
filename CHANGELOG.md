@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.17] - 2026-09-07
+
+### Fixed
+
+- **The `pre-push` hook no longer blocks pushes from the host.** `core.hooksPath` is a
+  repository-level setting shared by the host and the container, so the unconditional
+  `pre-push` guard also refused a human's `git push` from the host — the one place a push is
+  meant to happen. The hook now keys off a new `CDFORGE_DEVCONTAINER=1` env var (added to
+  `devcontainer.json`'s `containerEnv`): it refuses a push from inside the devcontainer and
+  is a no-op on the host. Re-run `cdforge adopt .` on a generated project to pick up the
+  change.
+
 ## [0.1.16] - 2026-09-07
 
 ### Added

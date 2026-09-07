@@ -54,7 +54,7 @@ def test_pre_commit_hook_rejects_a_commit_with_a_failing_test(tmp_path: Path) ->
     assert len(log.stdout.strip().splitlines()) == 1
 
 
-def test_pre_push_hook_blocks_pushes(tmp_path: Path) -> None:
+def test_pre_push_hook_blocks_pushes_only_inside_the_devcontainer(tmp_path: Path) -> None:
     answers = load_answers_file(FIXTURE)
     project_dir = scaffold_project(answers, tmp_path / 'widget-tool-push')
 
@@ -63,7 +63,7 @@ def test_pre_push_hook_blocks_pushes(tmp_path: Path) -> None:
     assert os.access(hook, os.X_OK)
 
     # Point git at the hooks dir (post-create.sh does this in the real container) and add a
-    # dummy remote, then confirm a push is refused by the hook.
+    # dummy remote.
     subprocess.run(['git', 'config', 'core.hooksPath', '.githooks'], cwd=project_dir, check=True)
     subprocess.run(
         ['git', 'remote', 'add', 'origin', str(tmp_path / 'bare.git')],
@@ -74,11 +74,20 @@ def test_pre_push_hook_blocks_pushes(tmp_path: Path) -> None:
         ['git', 'init', '--bare', str(tmp_path / 'bare.git')], check=True, capture_output=True
     )
 
-    result = subprocess.run(
-        ['git', 'push', 'origin', 'HEAD'],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode != 0
-    assert 'pushing is disabled' in (result.stderr + result.stdout)
+    def push(env_extra: dict[str, str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ['git', 'push', 'origin', 'HEAD'],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            env={**os.environ, **env_extra},
+        )
+
+    # Inside the devcontainer (CDFORGE_DEVCONTAINER set) the hook refuses the push.
+    blocked = push({'CDFORGE_DEVCONTAINER': '1'})
+    assert blocked.returncode != 0
+    assert 'pushing is disabled' in (blocked.stderr + blocked.stdout)
+
+    # On the host (no CDFORGE_DEVCONTAINER) the same hook is a no-op and the push succeeds.
+    allowed = push({'CDFORGE_DEVCONTAINER': ''})
+    assert allowed.returncode == 0, allowed.stderr + allowed.stdout

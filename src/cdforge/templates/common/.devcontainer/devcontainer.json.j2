@@ -54,7 +54,8 @@
   ],
 {% endif %}
   "containerEnv": {
-    "CLAUDE_CONFIG_DIR": "/home/{{ remote_user }}/.claude"
+    "CLAUDE_CONFIG_DIR": "/home/{{ remote_user }}/.claude",
+    "CDFORGE_DEVCONTAINER": "1"
   },
   "initializeCommand": "mkdir -p \"${localWorkspaceFolder}/.devcontainer/claude-home\"",
   "postCreateCommand": "bash .devcontainer/post-create.sh"
