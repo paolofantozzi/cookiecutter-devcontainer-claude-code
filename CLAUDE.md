@@ -84,6 +84,17 @@ pre-commit hook needs them), and it refuses to run over uncommitted tracked chan
 to `templates/common/`, decide which of the four categories it falls into — the default for
 an unlisted path is "never written into an existing project".
 
+The project type is resolved in `cli._resolve_adopt_answers`: `--answers-file`, else
+`.cdforge.json` (unless `--reconfigure`), else `detect.py`. `--type/-t` overrides the type in
+all of those. An interactive run with a recorded manifest calls
+`wizard.reselect_project_type`, which keeps every `COMMON_ANSWER_KEYS` answer and prompts
+only for the (possibly new) type's own questions — a lighter path than `--reconfigure`.
+`_stdin_is_interactive()` gates that prompt so non-interactive runs and the test suite keep
+reusing the recorded answers untouched (the "already aligned" round trip depends on this).
+`--type` never prompts: a forced switch fills the new type's answers from `detect.py` +
+question defaults. Since `adopt` only writes the managed files, switching the type
+regenerates the sandbox/hooks/skills but never scaffolds the new type's source code.
+
 ## The `data_science` project type
 
 Notebooks are a project type with two rules of its own worth keeping:

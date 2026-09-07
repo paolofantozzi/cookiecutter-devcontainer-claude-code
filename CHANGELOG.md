@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.18] - 2026-09-07
+
+### Added
+
+- **`cdforge adopt` can now set the project type explicitly.** A new `--type/-t` flag
+  forces the project type, overriding both what `detect.py` infers and what a project's
+  `.cdforge.json` recorded — useful when detection guesses wrong (e.g. a docs-only project
+  seen as `python_uv_tool`, or a bare workspace that should be `generic`). It works in
+  every mode, including `--non-interactive` and `--answers-file`.
+- **Interactive `adopt` on a project with a recorded `.cdforge.json` now offers to change
+  the project type** instead of silently reusing the recorded one. Keeping the type is the
+  default and still a no-op; choosing a different one re-asks only that type's own
+  questions (not the whole wizard, which is what `--reconfigure` does). Non-interactive
+  runs and pipelines are unchanged — they still reuse the recorded answers untouched.
+
+Since `adopt` only rewrites the managed files (`.devcontainer/`, `.githooks/`, `.claude/`)
+and never scaffolds source code, switching the type re-generates the sandbox and hooks for
+the new type but leaves the project's own code alone.
+
 ## [0.1.17] - 2026-09-07
 
 ### Fixed

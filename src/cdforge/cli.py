@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -26,6 +27,7 @@ from cdforge.project_types.registry import PROJECT_TYPES
 from cdforge.scaffold import ScaffoldError
 from cdforge.scaffold import scaffold_project
 from cdforge.skills_catalog import OPTIONAL_SKILLS
+from cdforge.wizard import reselect_project_type
 from cdforge.wizard import run_wizard
 
 app = typer.Typer(
@@ -113,6 +115,72 @@ def _detected_answers(project_dir: Path) -> dict:
     return answers
 
 
+def _stdin_is_interactive() -> bool:
+    try:
+        return sys.stdin.isatty()
+    except (AttributeError, ValueError):
+        return False
+
+
+def _resolve_adopt_answers(
+    project_dir: Path,
+    *,
+    answers_file: Path | None,
+    type_id: str | None,
+    non_interactive: bool,
+    reconfigure: bool,
+) -> dict:
+    """Work out the answers `cdforge adopt` should render from.
+
+    Precedence: an explicit `--answers-file`, then the answers recorded in
+    `.cdforge.json` (unless `--reconfigure`), then what `detect.py` infers. `--type`
+    overrides the project type in every one of those, without prompting. An interactive
+    run with a recorded manifest also offers to change the type (re-asking only the new
+    type's own questions); a non-interactive one reuses the recorded answers untouched.
+    """
+    if answers_file is not None:
+        answers = load_answers_file(answers_file)
+        if type_id is not None:
+            answers = {**answers, 'project_type': type_id}
+        return answers
+
+    recorded = None if reconfigure else read_manifest_answers(project_dir)
+    if recorded is not None:
+        same_type = type_id in (None, recorded.get('project_type'))
+        if same_type and (non_interactive or not _stdin_is_interactive()):
+            typer.echo(f'Reusing the answers recorded in {MANIFEST_NAME}.')
+            return dict(recorded)
+        # Either the type is being changed (--type), or this is an interactive run that
+        # offers to change it. reselect_project_type only prompts when type_id is None.
+        answers = reselect_project_type(
+            recorded, _detected_answers(project_dir), forced_type=type_id
+        )
+        if answers is recorded:
+            typer.echo(f'Reusing the answers recorded in {MANIFEST_NAME}.')
+        else:
+            typer.secho(
+                f'Project type set to {answers["project_type"]}. adopt only rewrites the '
+                'managed files (.devcontainer/, .githooks/, .claude/); it never scaffolds '
+                "the new type's source code.",
+                fg=typer.colors.YELLOW,
+            )
+        return answers
+
+    if non_interactive or not _stdin_is_interactive():
+        answers = _detected_answers(project_dir)
+        if type_id is not None:
+            answers['project_type'] = type_id
+            typer.echo(f'Forcing project type: {type_id}')
+        else:
+            typer.echo(f'Detected project type: {answers["project_type"]}')
+        return answers
+
+    answers, _ = run_wizard(
+        _detected_answers(project_dir), ask_output_dir=False, force_project_type=type_id
+    )
+    return answers
+
+
 def _print_plan(plan: AlignmentPlan) -> None:
     typer.echo(f'Alignment plan for {plan.project_dir} ({plan.project_type_id}):')
     for change in plan.changes:
@@ -137,6 +205,15 @@ def adopt(
     answers_file: Annotated[
         Path | None,
         typer.Option('--answers-file', help='JSON file with pre-filled answers.'),
+    ] = None,
+    type_id: Annotated[
+        str | None,
+        typer.Option(
+            '--type',
+            '-t',
+            help='Force the project type, overriding what is detected or recorded in '
+            f'{MANIFEST_NAME} (one of: {", ".join(PROJECT_TYPES)}).',
+        ),
     ] = None,
     non_interactive: Annotated[
         bool,
@@ -176,20 +253,21 @@ def adopt(
     if not project_dir.is_dir():
         typer.secho(f'{project_dir} is not an existing directory', fg=typer.colors.RED)
         raise typer.Exit(code=1)
+    if type_id is not None and type_id not in PROJECT_TYPES:
+        typer.secho(
+            f'Unknown project type {type_id!r}. Available: {", ".join(PROJECT_TYPES)}',
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
 
     try:
-        if answers_file is not None:
-            answers = load_answers_file(answers_file)
-        else:
-            recorded = None if reconfigure else read_manifest_answers(project_dir)
-            if recorded is not None:
-                answers = recorded
-                typer.echo(f'Reusing the answers recorded in {MANIFEST_NAME}.')
-            elif non_interactive:
-                answers = _detected_answers(project_dir)
-                typer.echo(f'Detected project type: {answers["project_type"]}')
-            else:
-                answers, _ = run_wizard(_detected_answers(project_dir), ask_output_dir=False)
+        answers = _resolve_adopt_answers(
+            project_dir,
+            answers_file=answers_file,
+            type_id=type_id,
+            non_interactive=non_interactive,
+            reconfigure=reconfigure,
+        )
     except (AnswersError, ManifestError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc

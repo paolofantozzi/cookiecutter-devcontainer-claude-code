@@ -22,16 +22,107 @@ def _ask_question(question: Question, default: Any = None) -> Any:
     return questionary.text(question.prompt, default=str(resolved or '')).ask()
 
 
+def _ask_optional_skills(project_type_id: str, preselected: set[str]) -> list[str]:
+    catalog = skills_for_type(project_type_id)
+    if not catalog:
+        return []
+    chosen = questionary.checkbox(
+        'Optional Claude Code skills to include',
+        choices=[
+            questionary.Choice(
+                title=f'{s.label} — {s.description}',
+                value=s.id,
+                checked=s.id in preselected,
+            )
+            for s in catalog
+        ],
+    ).ask()
+    return chosen or []
+
+
+# Answers asked by the common part of the wizard; everything else in an answers dict
+# belongs to a specific project type's own questions. `reselect_project_type` keeps these
+# and re-asks only the chosen type's questions.
+COMMON_ANSWER_KEYS = (
+    'project_name',
+    'git_remote_url',
+    'project_type',
+    'gpu_enabled',
+    'docker_mode',
+    'network_firewall',
+    'optional_skills',
+)
+
+
+def reselect_project_type(
+    recorded: dict[str, Any],
+    detected: dict[str, Any] | None = None,
+    *,
+    forced_type: str | None = None,
+) -> dict[str, Any]:
+    """`cdforge adopt` on a project that already recorded its answers in `.cdforge.json`.
+
+    Every common answer the manifest recorded is kept; only the project type may change.
+    Returns the recorded answers unchanged when the type is left alone.
+
+    - ``forced_type`` (the ``--type`` flag): switch without prompting. The new type's own
+      answers are taken from ``detected`` where a key carries over and default otherwise;
+      run ``--reconfigure`` for the full wizard.
+    - otherwise: prompt for the type (default = the recorded one); changing it asks the
+      new type's own questions, pre-filled from ``detected``, instead of re-running the
+      whole wizard the way ``--reconfigure`` does.
+    """
+    detected = detected or {}
+    current = recorded.get('project_type')
+    if forced_type is not None:
+        chosen = forced_type
+    else:
+        chosen = questionary.select(
+            'Project type',
+            choices=[
+                questionary.Choice(title=pt.label, value=pt.id) for pt in PROJECT_TYPES.values()
+            ],
+            default=current if current in PROJECT_TYPES else None,
+        ).ask()
+    if chosen == current or chosen is None:
+        return recorded
+
+    answers: dict[str, Any] = {key: recorded[key] for key in COMMON_ANSWER_KEYS if key in recorded}
+    answers['project_type'] = chosen
+    fallback = {**detected, **recorded}
+    project_type = PROJECT_TYPES[chosen]
+
+    valid_skills = {s.id for s in skills_for_type(chosen)}
+    carried_skills = [
+        sid for sid in recorded.get('optional_skills', []) or [] if sid in valid_skills
+    ]
+
+    if forced_type is not None:
+        answers['optional_skills'] = carried_skills
+        for question in project_type.questions:
+            answers[question.key] = (
+                fallback[question.key] if question.key in fallback else question.resolve_default()
+            )
+        return answers
+
+    answers['optional_skills'] = _ask_optional_skills(chosen, set(carried_skills))
+    for question in project_type.questions:
+        answers[question.key] = _ask_question(question, fallback.get(question.key))
+    return answers
+
+
 def run_wizard(
     defaults: dict[str, Any] | None = None,
     *,
     ask_output_dir: bool = True,
+    force_project_type: str | None = None,
 ) -> tuple[dict[str, Any], Path | None]:
     """Ask the common questions plus the chosen type's own ones.
 
     `defaults` pre-fills every prompt, which is how `cdforge adopt` offers what it
     detected in an existing project; `ask_output_dir` is False when the target
-    directory is already known (adoption).
+    directory is already known (adoption); `force_project_type` skips the project-type
+    prompt and uses that type (the `cdforge adopt --type` flag).
     """
     defaults = defaults or {}
     answers: dict[str, Any] = {}
@@ -49,15 +140,18 @@ def run_wizard(
         default=str(defaults.get('git_remote_url', '')),
     ).ask()
 
-    type_choices = [
-        questionary.Choice(title=pt.label, value=pt.id) for pt in PROJECT_TYPES.values()
-    ]
-    default_type = defaults.get('project_type')
-    type_choice = questionary.select(
-        'Project type',
-        choices=type_choices,
-        default=default_type if default_type in PROJECT_TYPES else None,
-    ).ask()
+    if force_project_type is not None:
+        type_choice = force_project_type
+    else:
+        type_choices = [
+            questionary.Choice(title=pt.label, value=pt.id) for pt in PROJECT_TYPES.values()
+        ]
+        default_type = defaults.get('project_type')
+        type_choice = questionary.select(
+            'Project type',
+            choices=type_choices,
+            default=default_type if default_type in PROJECT_TYPES else None,
+        ).ask()
     answers['project_type'] = type_choice
     project_type: ProjectType = PROJECT_TYPES[type_choice]
 
@@ -129,23 +223,9 @@ def run_wizard(
         else 'none',
     ).ask()
 
-    catalog = skills_for_type(project_type.id)
-    if catalog:
-        preselected = set(defaults.get('optional_skills', []) or [])
-        chosen = questionary.checkbox(
-            'Optional Claude Code skills to include',
-            choices=[
-                questionary.Choice(
-                    title=f'{s.label} — {s.description}',
-                    value=s.id,
-                    checked=s.id in preselected,
-                )
-                for s in catalog
-            ],
-        ).ask()
-        answers['optional_skills'] = chosen or []
-    else:
-        answers['optional_skills'] = []
+    answers['optional_skills'] = _ask_optional_skills(
+        project_type.id, set(defaults.get('optional_skills', []) or [])
+    )
 
     for question in project_type.questions:
         answers[question.key] = _ask_question(question, defaults.get(question.key))

@@ -13,6 +13,7 @@ from cdforge.adopt import plan_alignment
 from cdforge.cli import app
 from cdforge.detect import detect_answers
 from cdforge.manifest import read_manifest_answers
+from cdforge.wizard import reselect_project_type
 
 runner = CliRunner()
 
@@ -192,6 +193,43 @@ def test_cli_adopt_non_interactive_uses_detected_answers(tmp_path: Path) -> None
     assert answers['package_import_name'] == 'legacy_tool'
 
 
+def test_cli_adopt_type_flag_overrides_the_detected_type(tmp_path: Path) -> None:
+    project_dir = make_legacy_project(tmp_path)
+
+    result = runner.invoke(
+        app, ['adopt', str(project_dir), '--non-interactive', '--type', 'generic']
+    )
+
+    assert result.exit_code == 0, result.output
+    answers = read_manifest_answers(project_dir)
+    assert answers['project_type'] == 'generic'
+
+
+def test_cli_adopt_type_flag_rejects_an_unknown_type(tmp_path: Path) -> None:
+    project_dir = make_legacy_project(tmp_path)
+
+    result = runner.invoke(app, ['adopt', str(project_dir), '--non-interactive', '--type', 'rust'])
+
+    assert result.exit_code == 1
+    assert 'Unknown project type' in result.output
+    assert not (project_dir / '.devcontainer').exists()
+
+
+def test_cli_adopt_non_interactive_type_flag_overrides_the_recorded_manifest(
+    tmp_path: Path,
+) -> None:
+    project_dir = make_legacy_project(tmp_path)
+    _adopt(project_dir)
+    assert read_manifest_answers(project_dir)['project_type'] == 'python_uv_tool'
+
+    result = runner.invoke(
+        app, ['adopt', str(project_dir), '--non-interactive', '--type', 'generic']
+    )
+
+    assert result.exit_code == 0, result.output
+    assert read_manifest_answers(project_dir)['project_type'] == 'generic'
+
+
 def test_cli_adopt_refuses_a_dirty_worktree_unless_forced(tmp_path: Path) -> None:
     project_dir = make_legacy_project(tmp_path, git=True)
     (project_dir / 'README.md').write_text('# changed\n')
@@ -209,6 +247,37 @@ def test_cli_adopt_fails_on_a_missing_directory(tmp_path: Path) -> None:
     result = runner.invoke(app, ['adopt', str(tmp_path / 'nope'), '--non-interactive'])
 
     assert result.exit_code == 1
+
+
+def test_reselect_project_type_unchanged_type_returns_the_recorded_answers() -> None:
+    recorded = {'project_name': 'Legacy Tool', 'project_type': 'python_uv_tool', 'x': 1}
+
+    assert reselect_project_type(recorded, forced_type='python_uv_tool') is recorded
+
+
+def test_reselect_project_type_forced_switch_keeps_common_answers_and_re_asks_the_type() -> None:
+    recorded = {
+        'project_name': 'Legacy Tool',
+        'git_remote_url': 'git@example.com:me/legacy.git',
+        'project_type': 'python_uv_tool',
+        'gpu_enabled': True,
+        'docker_mode': 'sysbox',
+        'network_firewall': 'allowlist',
+        'package_import_name': 'legacy_tool',
+        'cli_command_name': 'legacy',
+    }
+
+    switched = reselect_project_type(
+        recorded, {'python_version': '3.12'}, forced_type='data_science'
+    )
+
+    assert switched['project_type'] == 'data_science'
+    for key in ('project_name', 'git_remote_url', 'gpu_enabled', 'docker_mode', 'network_firewall'):
+        assert switched[key] == recorded[key]
+    # python_uv_tool's own answers are dropped; data_science's are filled in.
+    assert 'cli_command_name' not in switched
+    assert switched['ml_stack'] == 'analysis'
+    assert switched['python_version'] == '3.12'
 
 
 def test_detect_answers_recognises_a_django_project(tmp_path: Path) -> None:

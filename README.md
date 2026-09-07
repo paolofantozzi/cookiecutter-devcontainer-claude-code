@@ -117,8 +117,9 @@ $ cdforge adopt             # apply it
 
 It answers the same questions as `new`, pre-filled with what it can detect in the project
 (type, package/Django layout, dependencies, author, git remote, existing devcontainer
-settings); `--non-interactive` accepts the detected answers as-is. What it does with each
-file:
+settings); `--non-interactive` accepts the detected answers as-is. Pass `--type/-t` to force
+the project type when detection (or the recorded `.cdforge.json`) gets it wrong — it wins in
+every mode. What it does with each file:
 
 | Files | What happens |
 | --- | --- |
@@ -133,10 +134,12 @@ For a compose-based project (Django with Postgres/Redis) that already has its ow
 services stay untouched and the devcontainer's `app` service is merged on top.
 
 The answers are recorded in `.cdforge.json`, so a later `cdforge adopt` reuses them without
-asking (`--reconfigure` to change them). That also makes it the **upgrade path for generated
-projects**: after upgrading cdforge, re-run `cdforge adopt` in a project to pull in newer
-devcontainer fixes. Adoption refuses to run over uncommitted changes (`--force` to override),
-so the rewrite is always reviewable with `git diff`.
+asking (`--reconfigure` to re-ask everything). An interactive run still offers to change the
+**project type** — keeping it is a no-op; picking another re-asks only that type's own
+questions. That also makes `adopt` the **upgrade path for generated projects**: after
+upgrading cdforge, re-run `cdforge adopt` in a project to pull in newer devcontainer fixes.
+Adoption refuses to run over uncommitted changes (`--force` to override), so the rewrite is
+always reviewable with `git diff`.
 
 ## Developing cdforge itself
 
