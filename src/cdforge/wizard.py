@@ -67,22 +67,37 @@ def run_wizard(
     ).ask()
 
     docker_default = defaults.get('docker_mode', 'none')
-    answers['docker_mode'] = questionary.select(
-        'In-container Docker for Claude Code (build/run/Testcontainers)?',
-        choices=[
-            questionary.Choice('None — maximum sandbox (default)', value='none'),
-            questionary.Choice(
-                'Sysbox — Docker inside, still unprivileged/no host access '
-                '(requires sysbox on the host)',
-                value='sysbox',
-            ),
-            questionary.Choice(
-                'Privileged docker-in-docker — full Docker but REMOVES host isolation',
-                value='privileged',
-            ),
-        ],
-        default=docker_default if docker_default in ('none', 'sysbox', 'privileged') else 'none',
-    ).ask()
+    docker_choices = [
+        questionary.Choice('None — maximum sandbox (default)', value='none'),
+        questionary.Choice(
+            'Sysbox — Docker inside, still unprivileged/no host access '
+            '(requires sysbox on the host)',
+            value='sysbox',
+        ),
+        questionary.Choice(
+            'Privileged docker-in-docker — full Docker but REMOVES host isolation',
+            value='privileged',
+        ),
+    ]
+    if docker_default not in ('none', 'sysbox', 'privileged'):
+        docker_default = 'none'
+    while True:
+        answers['docker_mode'] = questionary.select(
+            'In-container Docker for Claude Code (build/run/Testcontainers)?',
+            choices=docker_choices,
+            default=docker_default,
+        ).ask()
+        if not (answers['gpu_enabled'] and answers['docker_mode'] == 'sysbox'):
+            break
+        # Sysbox has no NVIDIA-runtime support: a container with both --gpus=all and
+        # --runtime=sysbox-runc fails to start. Make the user resolve the conflict here.
+        questionary.print(
+            'Sysbox cannot be combined with GPU passthrough — the container would fail to '
+            "start. Choose 'none' or 'privileged', or restart and answer no to the GPU "
+            'question.',
+            style='fg:yellow',
+        )
+        docker_default = 'none'
 
     # A devcontainer is unprivileged, but by default it can still reach the host through the
     # Docker bridge gateway, plus the LAN and the whole internet. The firewall closes that.

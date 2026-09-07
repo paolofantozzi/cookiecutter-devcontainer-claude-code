@@ -151,7 +151,11 @@ for the full reasoning if changing them:
     compose `app` service, and starts a Docker daemon via `.devcontainer/docker-start.sh`.
     The container stays unprivileged with no host access — this is the preferred way to give
     Claude Code its own Docker. It requires Sysbox on the host (untestable in CI; validate
-    with a real rebuild on a sysbox host).
+    with a real rebuild on a sysbox host). **`sysbox` is incompatible with `gpu_enabled`** —
+    Sysbox has no NVIDIA-runtime support, so a container with both `--gpus=all` and
+    `--runtime=sysbox-runc` dies on the NVIDIA prestart hook (`Running hook #0 ... permission
+    denied`). `validate_answer_compatibility` in `answers.py` rejects the combination (the
+    wizard re-prompts; `build_context` raises `AnswersError`), so it can never be generated.
   - `privileged`: the `docker-in-docker` feature, which declares `"privileged": true` and so
     forces the container to run `--privileged` — giving in-container code CAP_SYS_ADMIN and
     direct host block-device/kernel access, a full escape of the "no host access" guarantee.
@@ -209,7 +213,8 @@ for the full reasoning if changing them:
   reaches `db`/`redis` by hostname on the compose network; publishing on all interfaces
   would put a fixed-password dev database on the LAN.
 - GPU passthrough is `runArgs: ["--gpus=all"]` in the plain build layout, and a device
-  reservation on the `app` service in the compose layout.
+  reservation on the `app` service in the compose layout. It cannot be combined with
+  `docker_mode: sysbox` (see the sysbox note above); pair a GPU with `none` or `privileged`.
 
 ## Language and style
 

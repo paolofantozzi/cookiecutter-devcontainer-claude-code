@@ -77,6 +77,7 @@ def test_docker_compose_defines_app_and_sibling_services(tmp_path: Path) -> None
 def test_sysbox_mode_sets_runtime_on_app_service(tmp_path: Path) -> None:
     answers = load_answers_file(FIXTURE)
     answers['docker_mode'] = 'sysbox'
+    answers['gpu_enabled'] = False  # sysbox has no NVIDIA-runtime support; the two conflict
     output_dir = tmp_path / 'notes-api-sysbox'
 
     project_dir = scaffold_project(answers, output_dir)

@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.15] - 2026-09-07
+
+### Fixed
+
+- **Reject `gpu_enabled` together with `docker_mode: sysbox`.** Sysbox has no NVIDIA
+  container-runtime support, so a devcontainer generated with both `--gpus=all` and
+  `--runtime=sysbox-runc` built fine but failed to start on the NVIDIA prestart hook
+  (`Running hook #0 ... failed to open OCI spec file: ... permission denied`). The wizard
+  now re-prompts for the Docker mode when the combination is chosen, and
+  `validate_answer_compatibility` (called from `build_context`, so it also covers
+  `--answers-file` runs and `cdforge adopt`) raises a clear `AnswersError` pointing at
+  `docker_mode: none` or `privileged`. Existing projects hitting this: re-run
+  `cdforge adopt .` after switching `docker_mode` in `.cdforge.json`.
+
 ## [0.1.14] - 2026-09-05
 
 ### Added

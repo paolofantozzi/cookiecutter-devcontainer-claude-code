@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from cdforge import __version__
+from cdforge.answers import validate_answer_compatibility
 from cdforge.project_types import data_science
 from cdforge.project_types import django_drf
 from cdforge.project_types import python_uv_tool
@@ -29,6 +30,7 @@ def build_context(
     optional_skill_ids: list[str],
 ) -> dict[str, Any]:
     context: dict[str, Any] = dict(answers)
+    validate_answer_compatibility(context)
     derive = _DERIVE_DEFAULTS.get(project_type.id)
     if derive is not None:
         for key, value in derive(answers).items():
@@ -107,6 +109,8 @@ def build_context(
 
     # runArgs for the plain (non-compose) layout. In the compose layout the runtime/privilege
     # is expressed on the `app` service instead.
+    # gpu_enabled + docker_mode='sysbox' is rejected in validate_answer_compatibility (Sysbox
+    # has no NVIDIA-runtime support), so these two branches never both fire.
     run_args: list[str] = []
     if context['gpu_enabled'] and not context['use_compose']:
         run_args.append('--gpus=all')

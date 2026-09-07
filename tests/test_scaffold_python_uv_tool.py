@@ -3,6 +3,9 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
+from cdforge.answers import AnswersError
 from cdforge.answers import load_answers_file
 from cdforge.scaffold import scaffold_project
 
@@ -141,6 +144,17 @@ def test_gpu_enabled_adds_run_args(tmp_path: Path) -> None:
     config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
 
     assert config['runArgs'] == ['--gpus=all']
+
+
+def test_gpu_plus_sysbox_is_rejected(tmp_path: Path) -> None:
+    # Sysbox has no NVIDIA-runtime support: a container with both --gpus=all and
+    # --runtime=sysbox-runc fails to start, so the combination must be refused up front.
+    answers = load_answers_file(FIXTURE)
+    answers['gpu_enabled'] = True
+    answers['docker_mode'] = 'sysbox'
+
+    with pytest.raises(AnswersError, match='sysbox'):
+        scaffold_project(answers, tmp_path / 'widget-tool-gpu-sysbox')
 
 
 def test_claude_settings_json_denies_git_push(tmp_path: Path) -> None:

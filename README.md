@@ -23,7 +23,8 @@ installed on your host at all.
   Docker daemon that stays unprivileged with no host access (requires Sysbox on a Linux
   host); **privileged** `docker-in-docker` gives Docker anywhere but makes the container
   `--privileged`, which grants host kernel/device access and voids the isolation above. The
-  generated docs say which one is in effect.
+  generated docs say which one is in effect. Sysbox cannot be combined with GPU passthrough
+  (it has no NVIDIA-runtime support); cdforge rejects that combination up front.
 - Login and conversation memory persist per project in `.devcontainer/claude-home/`
   (gitignored) — sign in once, it survives container rebuilds.
 - Every terminal session starts in Claude Code's `auto` permission mode; pushing is

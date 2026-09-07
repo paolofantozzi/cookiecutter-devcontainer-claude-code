@@ -87,7 +87,7 @@ def new(
 
     try:
         project_dir = scaffold_project(answers, resolved_output, force=force)
-    except ScaffoldError as exc:
+    except (ScaffoldError, AnswersError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
