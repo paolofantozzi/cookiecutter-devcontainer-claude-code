@@ -44,7 +44,15 @@ def _has_notebooks(project_dir: Path) -> bool:
     return any(project_dir.glob('*.ipynb'))
 
 
-def _detect_project_type(project_dir: Path, deps: str) -> str:
+def _looks_like_bare_workspace(pyproject: dict[str, Any]) -> bool:
+    """The generic type declares `[tool.uv] package = false`: a uv environment with
+    nothing to build. That flag is an explicit choice, so treat it as the signal."""
+    tool = pyproject.get('tool', {})
+    uv = tool.get('uv', {}) if isinstance(tool, dict) else {}
+    return isinstance(uv, dict) and uv.get('package') is False
+
+
+def _detect_project_type(project_dir: Path, deps: str, pyproject: dict[str, Any]) -> str:
     if (project_dir / 'manage.py').exists() or 'django' in deps:
         return 'django_drf'
     # Notebooks, or a stack nobody installs for a CLI tool. Plain pandas/numpy is not
@@ -53,6 +61,8 @@ def _detect_project_type(project_dir: Path, deps: str) -> str:
         marker in deps for marker in ('jupyter', 'notebook', 'torch', 'transformers')
     ):
         return 'data_science'
+    if _looks_like_bare_workspace(pyproject):
+        return 'generic'
     return 'python_uv_tool'
 
 
@@ -158,7 +168,7 @@ def detect_answers(project_dir: Path) -> dict[str, Any]:
     wizard when adopting it. Only keys we could actually infer are returned."""
     pyproject = _read_pyproject(project_dir)
     deps = _dependency_names(pyproject)
-    project_type = _detect_project_type(project_dir, deps)
+    project_type = _detect_project_type(project_dir, deps, pyproject)
 
     detected: dict[str, Any] = {
         'project_name': _detect_project_name(project_dir, pyproject),
@@ -193,6 +203,10 @@ def detect_answers(project_dir: Path) -> dict[str, Any]:
         if python_version:
             detected['python_version'] = python_version
         detected['include_mypy'] = 'mypy' in deps
+    elif project_type == 'generic':
+        python_version = _detect_python_version(pyproject)
+        if python_version:
+            detected['python_version'] = python_version
     else:
         slug = _detect_django_project_slug(project_dir)
         if slug:

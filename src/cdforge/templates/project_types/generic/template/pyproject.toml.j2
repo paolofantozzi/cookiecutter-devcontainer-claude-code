@@ -1,0 +1,35 @@
+[project]
+name = "{{ project_slug }}"
+version = "0.1.0"
+description = "{{ project_name }}"
+readme = "README.md"
+requires-python = ">={{ python_version }}"
+dependencies = []
+
+[tool.uv]
+# This is a bare workspace, not a Python package: there is nothing to build or install, so
+# `uv sync` only creates the environment and installs the dev tools below. Give it a build
+# backend and a src/<pkg>/ layout later if the project grows into a real package.
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py{{ python_version.replace('.', '') }}"
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.16] - 2026-09-07
+
+### Added
+
+- New **`generic` project type**: a near-empty workspace for whatever does not fit the other
+  types — drafting documents, keeping notes, scratch code — running in the same sandboxed
+  devcontainer. It ships only a `docs/` folder, a `tests/` folder, and a `pyproject.toml`
+  that gives a `uv`-managed environment with `ruff` and `pytest` but nothing to build
+  (`[tool.uv] package = false`, no `[build-system]`). Its `.githooks/pre-commit` runs the
+  test suite but treats pytest's "no tests collected" status as success, so a
+  documents-only project commits without carrying any tests. `cdforge adopt` recognises an
+  existing project as `generic` when its `pyproject.toml` sets `[tool.uv] package = false`.
+  Only one question, `python_version`.
+
 ## [0.1.15] - 2026-09-07
 
 ### Fixed

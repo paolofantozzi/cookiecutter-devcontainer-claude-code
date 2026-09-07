@@ -51,6 +51,7 @@ installed on your host at all.
 | `python_uv_tool` | A `uv`-managed Python CLI (Typer), ruff-formatted, pytest tests. |
 | `django_drf` | A Django REST Framework API: pytest-django, optional Postgres/Redis/Celery as unprivileged sibling containers via the Dev Containers Docker Compose workflow, JWT or session auth, optional drf-spectacular docs. |
 | `data_science` | Jupyter notebooks plus a reusable `src/` package for data analysis and model training: numpy/pandas/scikit-learn, optionally PyTorch (CPU or CUDA wheels) and the Hugging Face transformers stack, MLflow or W&B tracking, notebooks linted by ruff and stripped of outputs before every commit. |
+| `generic` | A near-empty workspace: Python, `uv`, `ruff` and `pytest` available inside the sandboxed devcontainer, a `docs/` folder, and nothing to build (`[tool.uv] package = false`). For drafting documents, keeping notes, or scratch code that does not fit the other types. |
 
 Run `cdforge list-types` to see this list from the CLI, and `cdforge list-skills` for the
 optional Claude Code skills you can add on top of the mandatory ones.

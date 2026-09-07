@@ -1,0 +1,36 @@
+FROM {{ base_image }}
+
+# The upstream devcontainer base image ships a third-party yarn apt source whose signing
+# key periodically expires, which breaks `apt-get update`. These projects do not use yarn,
+# so remove that source before updating.
+RUN rm -f /etc/apt/sources.list.d/yarn.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+{% for package in extra_apt_packages %}
+        {{ package }} \
+{% endfor %}
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+{% if firewall_enabled %}
+# The egress firewall lives in the image, root-owned, rather than being run from the
+# workspace: nothing inside the container can rewrite the rules it applies. postStartCommand
+# runs it on every container start.
+COPY {% if use_compose %}.devcontainer/{% endif %}init-firewall.sh /usr/local/bin/cdforge-firewall
+RUN chmod 0755 /usr/local/bin/cdforge-firewall
+
+{% endif %}
+{% if network_firewall == 'strict' %}
+# Strict mode: drop the base image's blanket passwordless sudo so the firewall cannot be
+# flushed from inside the container. Root stays reachable for exactly one command, the
+# firewall script itself (which is idempotent and takes no arguments). Install extra system
+# packages by editing this Dockerfile on the host and rebuilding.
+RUN rm -f /etc/sudoers.d/{{ remote_user }} /etc/sudoers.d/1000 \
+    && echo '{{ remote_user }} ALL=(root) NOPASSWD: /usr/local/bin/cdforge-firewall' \
+        > /etc/sudoers.d/010-cdforge-firewall \
+    && chmod 0440 /etc/sudoers.d/010-cdforge-firewall
+
+{% endif %}
+USER {{ remote_user }}

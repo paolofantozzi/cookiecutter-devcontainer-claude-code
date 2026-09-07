@@ -1,0 +1,23 @@
+## Usage
+
+This is a generic workspace: it ships almost nothing on purpose. Use it for whatever the
+project needs — drafting documents under `docs/`, keeping notes, or writing throwaway
+scripts — with Python, `uv`, `ruff` and `pytest` already available inside the devcontainer.
+
+```console
+$ uv run python              # a REPL in the project environment
+$ uv add <package>           # add a dependency
+```
+
+## Development
+
+```console
+$ uv run pytest         # run the test suite (does nothing until tests/ has tests)
+$ uv run ruff check .   # lint
+$ uv run ruff format .  # format
+```
+
+`pyproject.toml` sets `[tool.uv] package = false`, so there is nothing to build or publish.
+If the workspace turns into a real Python package, add a `[build-system]` and a
+`src/<package>/` layout, or re-run `cdforge adopt` on the host and pick the `python_uv_tool`
+type.

@@ -110,6 +110,20 @@ MLflow's plain-directory store is deprecated and now *raises*, so the generated 
 uses a SQLite backend store (`mlflow.db`) with an explicit absolute artifact location: the
 same run lands in the same place whether it was started from `notebooks/` or the project root.
 
+## The `generic` project type
+
+The minimal type: Python + `uv` + `ruff` + `pytest` in the sandbox and nothing else. Its
+`pyproject.toml` sets `[tool.uv] package = false` and declares no `[build-system]`, so there
+is nothing to build; the template tree is just `docs/.gitkeep` and `tests/.gitkeep`. It has
+one question (`python_version`) and no `derive_defaults`. Two rules of its own:
+
+- Its `precommit.fragment.sh.j2` runs `uv run pytest || [ "$?" -eq 5 ]` — pytest's
+  "no tests collected" exit status is treated as success, because a documents-only project
+  legitimately has no tests. A real failure (exit 1) still blocks the commit.
+- `detect.py` classifies an existing project as `generic` only on the explicit
+  `[tool.uv] package = false` signal, so a normal package missing a `[build-system]` is
+  still detected as `python_uv_tool`.
+
 ## Template tree layout
 
 - `templates/common/` mirrors a generated project's root exactly (`.devcontainer/`,

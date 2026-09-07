@@ -1,0 +1,18 @@
+## Project layout
+
+This is a **generic workspace**, not a package: it starts almost empty and takes whatever
+shape the work needs.
+
+- `docs/` — a place for documents, notes and drafts (Markdown, plain text, ...).
+- `tests/` — pytest suite, if the workspace grows any Python worth testing. It may stay
+  empty; the pre-commit hook does not require tests to exist.
+- `pyproject.toml` — a uv-managed environment with `ruff` and `pytest` available.
+  `[tool.uv] package = false`, so there is nothing to build. Add a `[build-system]` and a
+  `src/<package>/` layout if this becomes a real package, or switch to the `python_uv_tool`
+  type on the host with `cdforge adopt`.
+
+## Running things
+
+- `uv run pytest` — run the test suite (a no-op while `tests/` is empty).
+- `uv run ruff check .` / `uv run ruff format .` — lint / format any Python in the tree.
+- `uv add <package>` — add a dependency (never `pip install`; it does not survive a rebuild).

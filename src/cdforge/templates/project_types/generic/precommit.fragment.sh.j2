@@ -1,0 +1,5 @@
+
+# Run the test suite if there is one. This workspace may hold only documents or scratch
+# files and carry no tests at all, so pytest's "no tests collected" status (5) is treated
+# as success; any real failure (1) still blocks the commit.
+uv run pytest || [ "$?" -eq 5 ]
