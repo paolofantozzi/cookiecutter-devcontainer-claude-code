@@ -442,3 +442,35 @@ def test_adopt_creates_a_backing_services_compose_file_when_the_project_has_none
 
     # Idempotent: a second pass has nothing to write.
     assert plan_alignment(DJANGO_ANSWERS, project_dir).writes == []
+
+
+PYTHON_DB_ANSWERS = {
+    **ANSWERS,
+    'database': 'postgres',
+    # A database server runs from inside the devcontainer, which needs its own daemon.
+    'docker_mode': 'sysbox',
+}
+
+
+def test_adopt_creates_a_root_compose_for_a_non_django_server_database(tmp_path: Path) -> None:
+    project_dir = make_legacy_project(tmp_path)
+
+    plan = plan_alignment(PYTHON_DB_ANSWERS, project_dir)
+    apply_alignment(plan, PYTHON_DB_ANSWERS)
+
+    compose = (project_dir / 'docker-compose.yml').read_text()
+    assert 'app:' not in compose
+    assert 'postgres:16' in compose
+    assert 'DATABASE_URL=postgres://' in (project_dir / '.env.example').read_text()
+    # docker-compose.yml / .env.example are create-only: a second pass rewrites nothing.
+    assert plan_alignment(PYTHON_DB_ANSWERS, project_dir).writes == []
+
+
+def test_adopt_warns_when_a_server_database_has_no_driver(tmp_path: Path) -> None:
+    # The legacy pyproject.toml only depends on typer; adoption never edits it, so the
+    # missing psycopg driver is surfaced as a note instead.
+    project_dir = make_legacy_project(tmp_path)
+
+    plan = plan_alignment(PYTHON_DB_ANSWERS, project_dir)
+
+    assert any('psycopg' in note for note in plan.notes)

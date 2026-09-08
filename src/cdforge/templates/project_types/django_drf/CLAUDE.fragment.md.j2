@@ -4,11 +4,11 @@
 - `apps/{{ initial_app_name }}/` — the first Django app: models, serializers, views, urls,
   tests. New apps follow the same `apps/<name>/` layout and are added to `INSTALLED_APPS`
   as `apps.<name>`.
-- Database: **{{ database }}**{% if database == 'postgres' %}. Postgres runs from
+- Database: **{{ database }}**{% if db_is_server %}. The `db` service runs from
   `docker-compose.yml`, which you bring up yourself from inside the devcontainer with its
-  in-container Docker daemon (`docker compose up -d`). It publishes on `127.0.0.1:5432`;
+  in-container Docker daemon (`docker compose up -d`). It publishes on `127.0.0.1:{{ db_port }}`;
   `DATABASE_URL` in `.env` (copy it from `.env.example`) already points Django at
-  `localhost:5432`{% endif %}.
+  `localhost:{{ db_port }}`{% endif %}.
 {% if include_celery %}
 - Background tasks run through Celery with Redis as broker/result backend. Redis is the
   `redis` service in `docker-compose.yml` (same `docker compose up -d`), published on
@@ -23,5 +23,5 @@
   runs without any external service).
 {% if needs_service_stack %}
 - `docker compose up -d` / `docker compose down` — start/stop the local
-  {% if database == 'postgres' %}Postgres{% endif %}{% if database == 'postgres' and include_celery %} and {% endif %}{% if include_celery %}Redis{% endif %} container{% if database == 'postgres' and include_celery %}s{% endif %}. This uses the devcontainer's own in-container Docker daemon; the containers are not on the host and are reached at `localhost`.
+  {% if db_is_server %}{{ database }}{% endif %}{% if db_is_server and include_celery %} and {% endif %}{% if include_celery %}Redis{% endif %} container{% if db_is_server and include_celery %}s{% endif %}. This uses the devcontainer's own in-container Docker daemon; the containers are not on the host and are reached at `localhost`.
 {% endif %}

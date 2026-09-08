@@ -57,6 +57,35 @@ def _dependency_names(pyproject: dict[str, Any]) -> str:
     return ' '.join(chunks).lower()
 
 
+def _detect_database(project_dir: Path, deps: str) -> str:
+    """The database backend an existing Python project already uses, inferred from its
+    driver dependency, a checked-in `docker-compose.yml`, or a local SQLite file."""
+    if 'psycopg' in deps or 'postgres' in deps:
+        return 'postgres'
+    if 'mysqlclient' in deps or 'pymysql' in deps:
+        return 'mariadb'
+    compose = project_dir / 'docker-compose.yml'
+    if compose.exists():
+        try:
+            text = compose.read_text(encoding='utf-8').lower()
+        except OSError:
+            text = ''
+        if 'postgres' in text:
+            return 'postgres'
+        if 'mariadb' in text or 'mysql' in text:
+            return 'mariadb'
+    if (project_dir / 'db.sqlite3').exists():
+        return 'sqlite'
+    env_example = project_dir / '.env.example'
+    if env_example.exists():
+        try:
+            if 'sqlite://' in env_example.read_text(encoding='utf-8').lower():
+                return 'sqlite'
+        except OSError:
+            pass
+    return 'none'
+
+
 def _has_notebooks(project_dir: Path) -> bool:
     notebooks = project_dir / 'notebooks'
     if notebooks.is_dir() and any(notebooks.glob('*.ipynb')):
@@ -249,6 +278,10 @@ def detect_answers(project_dir: Path) -> dict[str, Any]:
     detected.update(_detect_authors(pyproject))
     detected.update(_detect_devcontainer_answers(project_dir))
 
+    if project_type != 'angular':
+        # Every Python type offers the database question now.
+        detected['database'] = _detect_database(project_dir, deps)
+
     if project_type == 'data_science':
         package = _detect_package_import_name(project_dir)
         if package:
@@ -296,7 +329,6 @@ def detect_answers(project_dir: Path) -> dict[str, Any]:
         app = _detect_initial_app_name(project_dir)
         if app:
             detected['initial_app_name'] = app
-        detected['database'] = 'postgres' if ('psycopg' in deps or 'postgres' in deps) else 'sqlite'
         detected['include_celery'] = 'celery' in deps
         detected['auth_method'] = 'simplejwt' if 'simplejwt' in deps else 'session'
         detected['api_docs'] = 'drf-spectacular' if 'drf-spectacular' in deps else 'none'

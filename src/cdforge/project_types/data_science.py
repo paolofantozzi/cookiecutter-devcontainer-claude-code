@@ -4,6 +4,7 @@ from cdforge.git_ops import host_git_user_email
 from cdforge.git_ops import host_git_user_name
 from cdforge.project_types.base import ProjectType
 from cdforge.project_types.base import Question
+from cdforge.project_types.base import database_question
 
 # The three cumulative dependency stacks this type can install.
 STACKS = ('analysis', 'deep-learning', 'transformers')
@@ -88,6 +89,7 @@ DATA_SCIENCE = ProjectType(
             choices=['mlflow', 'wandb', 'none'],
             default='mlflow',
         ),
+        database_question(),
         Question(
             key='license_id',
             prompt='License',

@@ -16,3 +16,16 @@ shape the work needs.
 - `uv run pytest` — run the test suite (a no-op while `tests/` is empty).
 - `uv run ruff check .` / `uv run ruff format .` — lint / format any Python in the tree.
 - `uv add <package>` — add a dependency (never `pip install`; it does not survive a rebuild).
+{% if database != 'none' %}
+
+## Database
+
+- `DATABASE_URL` in `.env` (copy it from `.env.example`) is the connection string.
+{% if db_is_server %}
+- The `{{ database }}` server lives in `docker-compose.yml`; start it from inside the
+  devcontainer with `docker compose up -d` (it publishes on `127.0.0.1:{{ db_port }}`). The
+  `{% if database == 'postgres' %}psycopg{% else %}mysqlclient{% endif %}` driver is in `pyproject.toml`; add your own client or ORM on top.
+{% else %}
+- A local SQLite file (`db.sqlite3`); there is no service to start.
+{% endif %}
+{% endif %}

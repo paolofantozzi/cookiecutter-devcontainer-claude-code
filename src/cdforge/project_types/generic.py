@@ -1,5 +1,6 @@
 from cdforge.project_types.base import ProjectType
 from cdforge.project_types.base import Question
+from cdforge.project_types.base import database_question
 
 GENERIC = ProjectType(
     id='generic',
@@ -19,5 +20,6 @@ GENERIC = ProjectType(
             choices=['3.11', '3.12', '3.13'],
             default='3.12',
         ),
+        database_question(),
     ],
 )

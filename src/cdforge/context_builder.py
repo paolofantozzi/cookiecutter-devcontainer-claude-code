@@ -20,6 +20,12 @@ _DERIVE_DEFAULTS = {
     'angular': angular.derive_defaults,
 }
 
+# Per-engine facts the templates (docker-compose.yml, .env.example, pyproject.toml) need.
+_DB_SERVERS = {
+    'postgres': {'image': 'postgres:16', 'port': 5432, 'scheme': 'postgres'},
+    'mariadb': {'image': 'mariadb:11', 'port': 3306, 'scheme': 'mysql'},
+}
+
 
 def slugify(raw: str) -> str:
     slug = re.sub(r'[^a-zA-Z0-9]+', '-', raw.strip()).strip('-').lower()
@@ -44,17 +50,40 @@ def build_context(
     context.setdefault('project_slug', slugify(context['project_name']))
     context.setdefault('git_remote_url', '')
     context.setdefault('gpu_enabled', False)
+    # Celery is a django_drf question; the shared templates still reference it when a
+    # non-Django project has a service stack for its database alone.
+    context.setdefault('include_celery', False)
+
+    # Database backend (offered by every Python type; 'none' for a type that never asked).
+    #   none/sqlite - no service; sqlite is a local file.
+    #   postgres/mariadb - a server: `scaffold` writes a root `docker-compose.yml` for it and
+    #     the software is wired to it through `DATABASE_URL` (see `.env.example`).
+    database = context.get('database') or 'none'
+    context['database'] = database
+    context['db_is_server'] = database in _DB_SERVERS
+    db_slug = context['project_slug'].replace('-', '_')
+    if context['db_is_server']:
+        server = _DB_SERVERS[database]
+        context['db_image'] = server['image']
+        context['db_port'] = server['port']
+        context['db_name'] = db_slug
+        context['db_user'] = db_slug
+        context['db_password'] = 'devpassword'
+        context['database_url'] = (
+            f'{server["scheme"]}://{db_slug}:devpassword@localhost:{server["port"]}/{db_slug}'
+        )
+    elif database == 'sqlite':
+        context['database_url'] = 'sqlite:///db.sqlite3'
+    else:
+        context['database_url'] = ''
 
     # The devcontainer is always a single, plain `build.dockerfile` container - it is only
-    # the dev/Claude Code environment and never bundles backing services. A `django_drf`
-    # project that needs Postgres/Redis ships a plain `docker-compose.yml` (db/redis only,
+    # the dev/Claude Code environment and never bundles backing services. A project that
+    # needs a database server or Redis ships a plain `docker-compose.yml` (db/redis only,
     # no `app` service) that the developer brings up from *inside* the container with the
     # in-container Docker daemon; `docker_mode` must therefore be 'sysbox' or 'privileged'
     # for such a project (enforced in `answers.validate_answer_compatibility`).
-    context['needs_service_stack'] = bool(
-        project_type.id == 'django_drf'
-        and (context.get('database') == 'postgres' or context.get('include_celery'))
-    )
+    context['needs_service_stack'] = bool(context['db_is_server'] or context.get('include_celery'))
 
     # How (if at all) Claude Code can run its own containers inside the devcontainer:
     #   'none'       - no in-container Docker (default, maximum sandbox).
@@ -125,6 +154,11 @@ def build_context(
     extra_apt_packages = list(project_type.extra_apt_packages)
     if context['firewall_enabled'] and 'iptables' not in extra_apt_packages:
         extra_apt_packages.append('iptables')
+    if database == 'mariadb':
+        # `mysqlclient` is a C extension built against libmariadb at `uv sync` time.
+        for package in ('default-libmysqlclient-dev', 'pkg-config'):
+            if package not in extra_apt_packages:
+                extra_apt_packages.append(package)
     context['extra_apt_packages'] = extra_apt_packages
     context['extra_features'] = project_type.extra_features
     context['forward_ports'] = list(project_type.forward_ports)

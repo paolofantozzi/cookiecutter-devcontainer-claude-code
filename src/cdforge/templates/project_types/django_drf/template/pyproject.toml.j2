@@ -14,6 +14,8 @@ dependencies = [
     "python-dotenv>=1.0",
 {% if database == 'postgres' %}
     "psycopg[binary]>=3.2",
+{% elif database == 'mariadb' %}
+    "mysqlclient>=2.2",
 {% endif %}
 {% if auth_method == 'simplejwt' %}
     "djangorestframework-simplejwt>=5.3",

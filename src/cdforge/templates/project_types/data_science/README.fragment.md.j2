@@ -30,6 +30,13 @@ $ uv run ruff format .    # format (notebooks included)
 
 Committed notebooks carry **no outputs**: the pre-commit hook runs `nbstripout` over the
 staged `.ipynb` files and re-stages them, so a notebook diff stays reviewable.
+{% if database != 'none' %}
+
+Copy `.env.example` to `.env`; `DATABASE_URL` is the connection string.
+{% if db_is_server %}The `{{ database }}` server lives in `docker-compose.yml` — bring it up
+from inside the devcontainer with `docker compose up -d` (published on
+`127.0.0.1:{{ db_port }}`).{% else %}It points at a local SQLite file; no service to start.{% endif %}
+{% endif %}
 {% if experiment_tracking == 'mlflow' %}
 
 Experiment runs are tracked with MLflow into `mlflow.db` + `mlartifacts/` (no server

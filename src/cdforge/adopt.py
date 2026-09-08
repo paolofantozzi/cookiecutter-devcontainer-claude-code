@@ -167,6 +167,23 @@ def _render_to_dict(answers: dict[str, Any]) -> dict[str, tuple[str, bool]]:
     return rendered
 
 
+def _database_notes(project_dir: Path, database: str) -> list[str]:
+    """A server database is wired through `DATABASE_URL` and a driver dependency; warn when
+    the adopted project declares no driver (we never rewrite its pyproject.toml)."""
+    if database not in ('postgres', 'mariadb'):
+        return []
+    pyproject = project_dir / 'pyproject.toml'
+    text = pyproject.read_text(encoding='utf-8').lower() if pyproject.exists() else ''
+    driver = 'psycopg' if database == 'postgres' else 'mysqlclient'
+    if driver in text:
+        return []
+    return [
+        f"database='{database}' expects the `{driver}` driver in pyproject.toml and a "
+        '`DATABASE_URL` pointing at the `db` service in the generated docker-compose.yml; '
+        'add the driver with `uv add` (adoption never edits pyproject.toml).'
+    ]
+
+
 def _tooling_notes(project_dir: Path, project_type_id: str) -> list[str]:
     """The generated pre-commit hook runs the project's linter and test suite; warn when
     the adopted project does not declare the tools it needs (we never rewrite its
@@ -240,6 +257,7 @@ def plan_alignment(answers: dict[str, Any], project_dir: Path) -> AlignmentPlan:
             plan.changes.append(PlannedChange(relative, category, action, content, executable))
 
     plan.notes = _tooling_notes(project_dir, answers['project_type'])
+    plan.notes += _database_notes(project_dir, answers.get('database', 'none'))
     return plan
 
 

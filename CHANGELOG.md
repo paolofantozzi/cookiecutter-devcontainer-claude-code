@@ -5,6 +5,35 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.21] - 2026-09-08
+
+### Added
+
+- **The database backend is a shared question for every Python project type**
+  (`python_uv_tool`, `django_drf`, `data_science`, `generic`), with choices
+  `none` | `sqlite` | `postgres` | `mariadb` (`database_question()` in
+  `project_types/base.py`). `none`/`sqlite` need no service. `postgres`/`mariadb` are
+  servers: `scaffold` writes a root `docker-compose.yml` for that engine (Postgres 16 /
+  MariaDB 11, ports on `127.0.0.1`, no `app` service), a `.env.example` whose `DATABASE_URL`
+  matches the compose credentials, and adds the driver (`psycopg[binary]` / `mysqlclient`)
+  to `pyproject.toml`; MariaDB also gets `default-libmysqlclient-dev` + `pkg-config` in the
+  image so `mysqlclient` builds.
+- MariaDB support for `django_drf` alongside the existing Postgres option; `settings.py`
+  already reads `DATABASE_URL` via `dj-database-url`, so no settings change was needed.
+
+### Changed
+
+- `needs_service_stack` (in `context_builder.py`) is no longer Django-only: any Python
+  project with `database` in (`postgres`, `mariadb`) — or `include_celery` — now emits the
+  root `docker-compose.yml` and requires `docker_mode` `sysbox`/`privileged`.
+  `answers.validate_answer_compatibility` and the wizard re-prompt reject a server database
+  with `docker_mode='none'` for every type, not just `django_drf`.
+- `detect.py` infers `database` (`postgres`/`mariadb`/`sqlite`/`none`) for every Python
+  type from the driver dependency, a checked-in `docker-compose.yml`, or a local
+  `db.sqlite3`. `cdforge adopt` still treats `docker-compose.yml` / `.env.example` as
+  create-only (written if missing, otherwise a reported conflict) and now warns when a
+  server database is chosen but the project's `pyproject.toml` declares no driver.
+
 ## [0.1.20] - 2026-09-08
 
 ### Changed

@@ -45,12 +45,14 @@ def validate_answer_compatibility(data: dict[str, Any]) -> None:
     if docker_mode not in ('none', 'sysbox', 'privileged'):
         # Backward compatibility with the older boolean answer.
         docker_mode = 'privileged' if data.get('enable_docker') else 'none'
-    if (data.get('database') == 'postgres' or data.get('include_celery')) and docker_mode == 'none':
+    if (
+        data.get('database') in ('postgres', 'mariadb') or data.get('include_celery')
+    ) and docker_mode == 'none':
         raise AnswersError(
-            "database='postgres'/include_celery needs a backing-service stack, which is now "
-            'run from *inside* the devcontainer (docker compose up -d) rather than as sibling '
-            "containers. That requires an in-container Docker daemon, so docker_mode='none' "
-            "is rejected: choose 'sysbox' (unprivileged, needs Sysbox on the host) or "
-            "'privileged' (full Docker, but removes host isolation), or use database='sqlite' "
-            'with no Celery to keep docker_mode=none.'
+            "database='postgres'/'mariadb'/include_celery needs a backing-service stack, which "
+            'is now run from *inside* the devcontainer (docker compose up -d) rather than as '
+            'sibling containers. That requires an in-container Docker daemon, so '
+            "docker_mode='none' is rejected: choose 'sysbox' (unprivileged, needs Sysbox on "
+            "the host) or 'privileged' (full Docker, but removes host isolation), or use "
+            "database='none'/'sqlite' with no Celery to keep docker_mode=none."
         )

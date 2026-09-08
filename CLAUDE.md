@@ -68,15 +68,21 @@ according to `adopt.classify()`:
 
 The devcontainer is **never** a Docker Compose project. `devcontainer.json` always uses the
 plain `build.dockerfile` layout — a single, plain container that is only the dev/Claude Code
-environment. A `django_drf` project that needs Postgres/Redis ships a plain
-`docker-compose.yml` (db/redis only, **no `app` service**) that the developer brings up from
-*inside* the container with the in-container Docker daemon (`docker compose up -d`); that is
-what `docker_mode: sysbox` / `privileged` is for, and `answers.validate_answer_compatibility`
-rejects `database='postgres'` / `include_celery` with `docker_mode='none'`. `adopt` writes no
-compose file at all: a project's own `docker-compose.yml` is *create-only* (written if
-missing, reported as a conflict otherwise — cdforge's is db/redis with `localhost` ports and
-may not match the project's). `context_builder.needs_service_stack` is the single derived
-flag (`django_drf` + postgres/celery); the templates branch on it.
+environment. A project that needs a **database server** (`database` in `postgres` /
+`mariadb`, a shared question on every Python type) or Redis (`django_drf` +
+`include_celery`) ships a plain root `docker-compose.yml` (db/redis only, **no `app`
+service**, ports on `127.0.0.1`) that the developer brings up from *inside* the container
+with the in-container Docker daemon (`docker compose up -d`); that is what
+`docker_mode: sysbox` / `privileged` is for, and `answers.validate_answer_compatibility`
+rejects `database` in (`postgres`, `mariadb`) / `include_celery` with `docker_mode='none'`
+for any type. `adopt` writes no compose file at all: a project's own `docker-compose.yml` is
+*create-only* (written if missing, reported as a conflict otherwise — cdforge's is db/redis
+with `localhost` ports and may not match the project's), and `adopt` *warns* when a server
+database is chosen but `pyproject.toml` declares no driver.
+`context_builder.needs_service_stack` is the single derived flag (`db_is_server` or
+`include_celery`); the templates branch on it. The db/`.env` wiring is derived in
+`context_builder.py`: `db_is_server`, `db_image`, `db_port`, `database_url`, and — for
+`mariadb` — `default-libmysqlclient-dev` + `pkg-config` appended to `extra_apt_packages`.
 
 Consequences worth preserving: adoption is idempotent (a freshly scaffolded project reports
 "already aligned" — `tests/test_cli.py` asserts this round trip), it never edits
@@ -123,12 +129,19 @@ MLflow's plain-directory store is deprecated and now *raises*, so the generated 
 uses a SQLite backend store (`mlflow.db`) with an explicit absolute artifact location: the
 same run lands in the same place whether it was started from `notebooks/` or the project root.
 
+Like every Python type it also carries the shared `database` question; `postgres`/`mariadb`
+emit the root `docker-compose.yml` + `.env.example` and add the driver, but no data-access
+code is generated — a notebook reads `DATABASE_URL` from the environment itself.
+
 ## The `generic` project type
 
 The minimal type: Python + `uv` + `ruff` + `pytest` in the sandbox and nothing else. Its
 `pyproject.toml` sets `[tool.uv] package = false` and declares no `[build-system]`, so there
 is nothing to build; the template tree is just `docs/.gitkeep` and `tests/.gitkeep`. It has
-one question (`python_version`) and no `derive_defaults`. Two rules of its own:
+two questions (`python_version` and the shared `database` question) and no `derive_defaults`.
+Picking `database` = `postgres`/`mariadb` still emits the root `docker-compose.yml` +
+`.env.example` and adds the driver to `pyproject.toml` (whose `dependencies` list goes from
+`[]` to holding just that driver). Two rules of its own:
 
 - Its `precommit.fragment.sh.j2` runs `uv run pytest || [ "$?" -eq 5 ]` — pytest's
   "no tests collected" exit status is treated as success, because a documents-only project
@@ -227,17 +240,19 @@ for the full reasoning if changing them:
     start. The script also switches Debian's iptables alternative to `iptables-nft` when the
     legacy backend cannot create the `nat` table, which is what dockerd needs on hosts whose
     kernel only has the nftables backend.
-- **Backing services run inside the devcontainer, not as sibling containers.** A `django_drf`
-  project that needs Postgres/Redis ships a plain `docker-compose.yml` (db/redis only, no
-  `app` service, ports published on `127.0.0.1`) that the developer runs from *inside* the
-  devcontainer with its in-container Docker daemon (`docker compose up -d`); `settings.py` /
-  `.env.example` point Django at `localhost`. This deliberately requires
-  `docker_mode: sysbox` / `privileged` — `answers.validate_answer_compatibility` rejects
-  `database='postgres'` / `include_celery` with `docker_mode='none'` (the wizard re-prompts
-  after the per-type questions; `build_context` raises `AnswersError`). The devcontainer
-  itself is always the plain single-container `build.dockerfile` layout;
-  `needs_service_stack` in `context_builder.py` only gates whether the `docker-compose.yml`
-  file is emitted.
+- **Backing services run inside the devcontainer, not as sibling containers.** Any Python
+  project that picks a database server (`database` in `postgres` / `mariadb`) — or a
+  `django_drf` project with `include_celery` for Redis — ships a plain root
+  `docker-compose.yml` (db/redis only, no `app` service, ports published on `127.0.0.1`)
+  that the developer runs from *inside* the devcontainer with its in-container Docker daemon
+  (`docker compose up -d`); the app reaches the services at `localhost` via `DATABASE_URL`
+  in `.env` (Django's `settings.py` reads it through `dj-database-url`). This deliberately
+  requires `docker_mode: sysbox` / `privileged` — `answers.validate_answer_compatibility`
+  rejects `database` in (`postgres`, `mariadb`) / `include_celery` with `docker_mode='none'`
+  (the wizard re-prompts after the per-type questions; `build_context` raises
+  `AnswersError`). The devcontainer itself is always the plain single-container
+  `build.dockerfile` layout; `needs_service_stack` in `context_builder.py` only gates
+  whether the `docker-compose.yml` file is emitted.
 - **`.devcontainer/` is bind-mounted read-only into the container** (over the read-write
   workspace mount, with `claude-home` re-mounted read-write). This stops in-container code
   from rewriting `devcontainer.json`/`Dockerfile`/`post-create.sh`, which the host trusts and

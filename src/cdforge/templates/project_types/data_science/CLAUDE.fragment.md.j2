@@ -69,3 +69,18 @@
 - Hub downloads (models, datasets) are cached under `HF_HOME`; the first cell that touches
   the Hub needs network access.
 {% endif %}
+{% if database != 'none' %}
+
+## Database
+
+- `DATABASE_URL` in `.env` (copy it from `.env.example`) is the connection string; read it
+  with `os.environ` and hand it to your client of choice (e.g. `pandas.read_sql`,
+  SQLAlchemy).
+{% if db_is_server %}
+- The `{{ database }}` server lives in `docker-compose.yml`; start it from inside the
+  devcontainer with `docker compose up -d` (it publishes on `127.0.0.1:{{ db_port }}`). The
+  `{% if database == 'postgres' %}psycopg{% else %}mysqlclient{% endif %}` driver is in `pyproject.toml`.
+{% else %}
+- A local SQLite file (`db.sqlite3`); there is no service to start.
+{% endif %}
+{% endif %}

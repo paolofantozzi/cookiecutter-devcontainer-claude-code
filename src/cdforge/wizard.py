@@ -230,15 +230,15 @@ def run_wizard(
     for question in project_type.questions:
         answers[question.key] = _ask_question(question, defaults.get(question.key))
 
-    # Postgres/Redis are run from inside the devcontainer (docker compose up -d), which needs
-    # an in-container Docker daemon. These questions come after docker_mode, so re-ask it
-    # here rather than let build_context reject the combination.
-    if (answers.get('database') == 'postgres' or answers.get('include_celery')) and answers.get(
-        'docker_mode'
-    ) == 'none':
+    # A database server / Redis is run from inside the devcontainer (docker compose up -d),
+    # which needs an in-container Docker daemon. These questions come after docker_mode, so
+    # re-ask it here rather than let build_context reject the combination.
+    if (
+        answers.get('database') in ('postgres', 'mariadb') or answers.get('include_celery')
+    ) and answers.get('docker_mode') == 'none':
         questionary.print(
-            'Postgres/Redis run inside the devcontainer via its own Docker daemon, so this '
-            "project needs docker_mode 'sysbox' or 'privileged' (not 'none').",
+            'A database server / Redis runs inside the devcontainer via its own Docker '
+            "daemon, so this project needs docker_mode 'sysbox' or 'privileged' (not 'none').",
             style='fg:yellow',
         )
         # Sysbox has no NVIDIA-runtime support, so a GPU project can only take 'privileged'.

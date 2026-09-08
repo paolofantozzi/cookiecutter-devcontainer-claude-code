@@ -81,9 +81,9 @@ container's. Prefer working inside the container, and review changes (they are t
 git) before running project tooling directly on the host.
 {% if needs_service_stack %}
 
-Backing services (Postgres/Redis) are defined in `docker-compose.yml`, which is **not** part
+Backing services ({% if db_is_server %}the {{ database }} database{% endif %}{% if db_is_server and include_celery %} and {% endif %}{% if include_celery %}Redis{% endif %}) are defined in `docker-compose.yml`, which is **not** part
 of the devcontainer. Start it from inside the container with the in-container Docker daemon
-(`docker compose up -d`); the services publish on `127.0.0.1` and Django reaches them at
+(`docker compose up -d`); the services publish on `127.0.0.1` and the app reaches them at
 `localhost`. `docker_mode` is `sysbox` or `privileged` for this project so that daemon
 exists.
 {% endif %}

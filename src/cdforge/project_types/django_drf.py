@@ -4,6 +4,7 @@ from cdforge.git_ops import host_git_user_email
 from cdforge.git_ops import host_git_user_name
 from cdforge.project_types.base import ProjectType
 from cdforge.project_types.base import Question
+from cdforge.project_types.base import database_question
 
 
 def _slugify(raw: str) -> str:
@@ -31,13 +32,7 @@ DJANGO_DRF = ProjectType(
             kind='text',
             default='core',
         ),
-        Question(
-            key='database',
-            prompt='Database backend',
-            kind='select',
-            choices=['postgres', 'sqlite'],
-            default='postgres',
-        ),
+        database_question('postgres'),
         Question(
             key='auth_method',
             prompt='API authentication method',

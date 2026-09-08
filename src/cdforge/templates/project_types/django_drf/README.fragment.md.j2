@@ -1,8 +1,8 @@
 ## Usage
 
 {% if needs_service_stack %}
-The backing service{% if database == 'postgres' and include_celery %}s{% endif %}
-({% if database == 'postgres' %}Postgres{% endif %}{% if database == 'postgres' and include_celery %} and {% endif %}{% if include_celery %}Redis{% endif %})
+The backing service{% if db_is_server and include_celery %}s{% endif %}
+({% if db_is_server %}{{ database }}{% endif %}{% if db_is_server and include_celery %} and {% endif %}{% if include_celery %}Redis{% endif %})
 live in `docker-compose.yml`. It is **not** part of the devcontainer — bring it up from
 inside the container with the in-container Docker daemon:
 

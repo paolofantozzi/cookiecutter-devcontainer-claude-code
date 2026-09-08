@@ -22,6 +22,11 @@ dependencies = [
     "ipykernel>=6.29",
     "ipywidgets>=8.1",
     "tqdm>=4.66",
+{% if database == 'postgres' %}
+    "psycopg[binary]>=3.2",
+{% elif database == 'mariadb' %}
+    "mysqlclient>=2.2",
+{% endif %}
 {% if include_torch %}
     "torch>=2.4",
 {% endif %}

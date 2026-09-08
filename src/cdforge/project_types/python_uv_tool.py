@@ -4,6 +4,7 @@ from cdforge.git_ops import host_git_user_email
 from cdforge.git_ops import host_git_user_name
 from cdforge.project_types.base import ProjectType
 from cdforge.project_types.base import Question
+from cdforge.project_types.base import database_question
 
 
 def _slugify_package_name(raw: str) -> str:
@@ -44,6 +45,7 @@ PYTHON_UV_TOOL = ProjectType(
             kind='confirm',
             default=True,
         ),
+        database_question(),
         Question(
             key='license_id',
             prompt='License',

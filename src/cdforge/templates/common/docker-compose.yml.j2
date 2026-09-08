@@ -5,22 +5,29 @@
 #
 #     docker compose up -d
 #
-# The services publish on 127.0.0.1 only; Django reaches them at `localhost` (see
+# The services publish on 127.0.0.1 only; the app reaches them at `localhost` (see
 # `.env.example`). `docker_mode` is `sysbox` or `privileged` for this project precisely so
 # this daemon exists.
 services:
-{% if database == 'postgres' %}
+{% if db_is_server %}
   db:
-    image: postgres:16
+    image: {{ db_image }}
     restart: unless-stopped
     environment:
-      POSTGRES_DB: {{ project_slug.replace('-', '_') }}
-      POSTGRES_USER: {{ project_slug.replace('-', '_') }}
-      POSTGRES_PASSWORD: devpassword
+{% if database == 'postgres' %}
+      POSTGRES_DB: {{ db_name }}
+      POSTGRES_USER: {{ db_user }}
+      POSTGRES_PASSWORD: {{ db_password }}
+{% else %}
+      MARIADB_DATABASE: {{ db_name }}
+      MARIADB_USER: {{ db_user }}
+      MARIADB_PASSWORD: {{ db_password }}
+      MARIADB_ROOT_PASSWORD: {{ db_password }}
+{% endif %}
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - db-data:/var/lib/{{ 'postgresql/data' if database == 'postgres' else 'mysql' }}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:{{ db_port }}:{{ db_port }}"
 {% endif %}
 {% if include_celery %}
   redis:
@@ -29,7 +36,7 @@ services:
     ports:
       - "127.0.0.1:6379:6379"
 {% endif %}
-{% if database == 'postgres' %}
+{% if db_is_server %}
 
 volumes:
   db-data:

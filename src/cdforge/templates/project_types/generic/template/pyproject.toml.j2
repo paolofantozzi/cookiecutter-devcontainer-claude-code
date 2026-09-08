@@ -4,7 +4,17 @@ version = "0.1.0"
 description = "{{ project_name }}"
 readme = "README.md"
 requires-python = ">={{ python_version }}"
+{% if database == 'postgres' %}
+dependencies = [
+    "psycopg[binary]>=3.2",
+]
+{% elif database == 'mariadb' %}
+dependencies = [
+    "mysqlclient>=2.2",
+]
+{% else %}
 dependencies = []
+{% endif %}
 
 [tool.uv]
 # This is a bare workspace, not a Python package: there is nothing to build or install, so

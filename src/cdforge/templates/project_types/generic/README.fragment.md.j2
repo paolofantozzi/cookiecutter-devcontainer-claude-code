@@ -21,3 +21,12 @@ $ uv run ruff format .  # format
 If the workspace turns into a real Python package, add a `[build-system]` and a
 `src/<package>/` layout, or re-run `cdforge adopt` on the host and pick the `python_uv_tool`
 type.
+{% if database != 'none' %}
+
+## Database
+
+Copy `.env.example` to `.env`; `DATABASE_URL` is the connection string.
+{% if db_is_server %}The `{{ database }}` server lives in `docker-compose.yml` — bring it up
+from inside the devcontainer with `docker compose up -d` (published on
+`127.0.0.1:{{ db_port }}`).{% else %}It points at a local SQLite file; no service to start.{% endif %}
+{% endif %}

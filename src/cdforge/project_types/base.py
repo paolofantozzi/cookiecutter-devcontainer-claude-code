@@ -25,6 +25,27 @@ class Question:
         return self.default
 
 
+# The database backend is offered by every Python project type. `none`/`sqlite` need no
+# service; `postgres`/`mariadb` make `scaffold` write a root `docker-compose.yml` for that
+# engine and require an in-container Docker daemon (`docker_mode` != 'none').
+DATABASE_CHOICES = ['none', 'sqlite', 'postgres', 'mariadb']
+
+
+def database_question(default: str = 'none') -> Question:
+    return Question(
+        key='database',
+        prompt='Database backend',
+        kind='select',
+        choices=list(DATABASE_CHOICES),
+        default=default,
+        help_text=(
+            'none/sqlite need no service. postgres/mariadb generate a root '
+            'docker-compose.yml for that engine and need in-container Docker '
+            "(docker_mode 'sysbox' or 'privileged')."
+        ),
+    )
+
+
 @dataclass(frozen=True)
 class ProjectType:
     id: str

@@ -40,7 +40,7 @@ container:
   over the network as leaving the sandbox.
 {% endif %}
 {% if needs_service_stack %}
-- Provides its backing services (Postgres/Redis) through `docker-compose.yml`, which you run
+- Provides its backing services ({% if db_is_server %}the {{ database }} database{% endif %}{% if db_is_server and include_celery %} and {% endif %}{% if include_celery %}Redis{% endif %}) through `docker-compose.yml`, which you run
   yourself from inside the container (`docker compose up -d`) using the in-container Docker
   daemon. Those containers stay inside the sandbox and are reached at `localhost`.
 {% endif %}
