@@ -32,6 +32,10 @@ class ProjectType:
     description: str
     base_image: str
     remote_user: str
+    # Toolchain family the generated project uses. The common templates branch on this:
+    # 'python' -> uv/ruff/pytest; 'node' -> npm/eslint. Defaults to 'python' since every
+    # type but `angular` is Python.
+    stack: str = 'python'
     extra_apt_packages: list[str] = field(default_factory=list)
     extra_features: dict[str, dict[str, Any]] = field(default_factory=dict)
     # Ports the devcontainer forwards to the host (a notebook server, a dev server, ...).

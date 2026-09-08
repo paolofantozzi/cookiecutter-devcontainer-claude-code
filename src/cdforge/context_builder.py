@@ -7,6 +7,7 @@ from typing import Any
 
 from cdforge import __version__
 from cdforge.answers import validate_answer_compatibility
+from cdforge.project_types import angular
 from cdforge.project_types import data_science
 from cdforge.project_types import django_drf
 from cdforge.project_types import python_uv_tool
@@ -16,6 +17,7 @@ _DERIVE_DEFAULTS = {
     'python_uv_tool': python_uv_tool.derive_defaults,
     'django_drf': django_drf.derive_defaults,
     'data_science': data_science.derive_defaults,
+    'angular': angular.derive_defaults,
 }
 
 
@@ -133,6 +135,7 @@ def build_context(
 
     context['project_type'] = project_type.id
     context['project_type_label'] = project_type.label
+    context['stack'] = project_type.stack
     context['remote_user'] = project_type.remote_user
     context['base_image'] = project_type.base_image
     extra_apt_packages = list(project_type.extra_apt_packages)

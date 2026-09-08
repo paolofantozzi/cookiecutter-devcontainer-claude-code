@@ -1,3 +1,4 @@
+from cdforge.project_types.angular import ANGULAR
 from cdforge.project_types.base import ProjectType
 from cdforge.project_types.data_science import DATA_SCIENCE
 from cdforge.project_types.django_drf import DJANGO_DRF
@@ -9,6 +10,7 @@ PROJECT_TYPES: dict[str, ProjectType] = {
     DJANGO_DRF.id: DJANGO_DRF,
     DATA_SCIENCE.id: DATA_SCIENCE,
     GENERIC.id: GENERIC,
+    ANGULAR.id: ANGULAR,
 }
 
 

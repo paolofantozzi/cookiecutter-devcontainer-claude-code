@@ -322,6 +322,31 @@ def test_detect_answers_recognises_a_notebook_project(tmp_path: Path) -> None:
     assert detected['experiment_tracking'] == 'wandb'
 
 
+def test_detect_answers_recognises_an_angular_project(tmp_path: Path) -> None:
+    project_dir = tmp_path / 'webapp'
+    project_dir.mkdir()
+    (project_dir / 'package.json').write_text(
+        '{\n'
+        '  "name": "web-app",\n'
+        '  "license": "Apache-2.0",\n'
+        '  "author": "Jane Dev <jane@example.com>",\n'
+        '  "engines": {"node": ">=20.0.0"},\n'
+        '  "dependencies": {"@angular/core": "^20.0.0"},\n'
+        '  "devDependencies": {"@angular/cli": "^20.0.0", "eslint": "^9.0.0"}\n'
+        '}\n'
+    )
+    (project_dir / 'angular.json').write_text('{"projects": {"web-app": {}}}\n')
+
+    detected = detect_answers(project_dir)
+
+    assert detected['project_type'] == 'angular'
+    assert detected['app_name'] == 'web-app'
+    assert detected['node_version'] == '20'
+    assert detected['license_id'] == 'Apache-2.0'
+    assert detected['author_name'] == 'Jane Dev'
+    assert detected['author_email'] == 'jane@example.com'
+
+
 def test_detect_answers_does_not_mistake_a_cli_tool_for_a_notebook_project(tmp_path: Path) -> None:
     project_dir = tmp_path / 'tool'
     (project_dir / 'src' / 'tool').mkdir(parents=True)

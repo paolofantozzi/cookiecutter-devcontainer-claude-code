@@ -1,0 +1,21 @@
+---
+name: angular-conventions
+description: Coding conventions for {{ project_name }} - Angular standalone components, npm, ESLint/Prettier, Karma specs.
+---
+
+This is an Angular single-page app managed with `npm`. Follow these conventions for every
+change:
+
+- Manage dependencies with `npm install` / `npm install --save-dev`; never hand-edit the
+  version ranges in `package.json`, and never call `pip` — this is a Node project.
+- Run everything through the `package.json` scripts or `npx`: `npm start` (`ng serve`),
+  `npm run build`, `npm test`, `npm run lint`, `npx ng generate ...`.
+- Components, directives and pipes are **standalone**. Do not introduce `NgModule`s. Use
+  `npx ng generate component features/<name>` so new pieces match the workspace layout.
+- String literals use single quotes, enforced by Prettier (`.prettierrc.json`) and
+  `npm run lint`.
+- Prefer signals and the modern control-flow syntax (`@if`, `@for`, `@switch`) in
+  templates over the older structural directives.
+- Every new component or service under `src/app/` needs a matching `*.spec.ts`. The
+  pre-commit hook runs `npm run lint` and the full Karma/Jasmine suite (headless Chromium)
+  and both must pass.

@@ -26,6 +26,10 @@ if [ ! -f "${CLAUDE_CONFIG_DIR}/settings.json" ]; then
 JSON
 fi
 
+{% if stack == 'node' %}
+npm install
+{% else %}
 uv sync --all-extras
+{% endif %}
 
 echo "Setup complete. Run 'claude' to sign in (once per project) and start working."

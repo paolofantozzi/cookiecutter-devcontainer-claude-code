@@ -193,9 +193,27 @@ def _resolve_compose_layout(
     return override, note
 
 
-def _tooling_notes(project_dir: Path) -> list[str]:
-    """The generated pre-commit hook runs ruff and pytest through uv; warn when the
-    adopted project does not declare them (we never rewrite its pyproject.toml)."""
+def _tooling_notes(project_dir: Path, project_type_id: str) -> list[str]:
+    """The generated pre-commit hook runs the project's linter and test suite; warn when
+    the adopted project does not declare the tools it needs (we never rewrite its
+    pyproject.toml / package.json)."""
+    if project_type_id == 'angular':
+        package_json = project_dir / 'package.json'
+        if not package_json.exists():
+            return [
+                'No package.json found: the .githooks/pre-commit hook runs `npm run lint` '
+                'and `npm test`, which need an npm project with an Angular CLI setup.'
+            ]
+        text = package_json.read_text(encoding='utf-8').lower()
+        missing = [tool for tool in ('eslint', '@angular/cli') if tool not in text]
+        if missing:
+            return [
+                f'package.json does not mention {" or ".join(missing)}: the generated '
+                '.githooks/pre-commit hook runs `npm run lint` / `npm test` and will fail '
+                'until the Angular CLI and ESLint are added as devDependencies.'
+            ]
+        return []
+
     pyproject = project_dir / 'pyproject.toml'
     if not pyproject.exists():
         return [
@@ -247,7 +265,9 @@ def plan_alignment(answers: dict[str, Any], project_dir: Path) -> AlignmentPlan:
             action = UNCHANGED if existing == content else CONFLICT
             plan.changes.append(PlannedChange(relative, category, action, content, executable))
 
-    plan.notes = ([compose_note] if compose_note else []) + _tooling_notes(project_dir)
+    plan.notes = ([compose_note] if compose_note else []) + _tooling_notes(
+        project_dir, answers['project_type']
+    )
     return plan
 
 

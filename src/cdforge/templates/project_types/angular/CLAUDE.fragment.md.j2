@@ -1,0 +1,31 @@
+## Project layout
+
+- `src/main.ts` — bootstraps `AppComponent` with `appConfig` (`bootstrapApplication`, no
+  NgModule).
+- `src/app/app.component.*` — the root standalone component.
+- `src/app/app.config.ts` — application-wide providers (change detection, router).
+- `src/app/app.routes.ts` — the router config; starts empty. Add lazy standalone routes here.
+- `angular.json` — the Angular CLI workspace (`{{ app_name }}` project: build, serve, test,
+  lint targets).
+- `eslint.config.js` / `.prettierrc.json` — lint and format rules.
+- `karma.conf.js` — Karma runs headless Chromium via the `ChromeHeadlessNoSandbox` launcher
+  (the container is unprivileged, so the Chromium sandbox is off). `CHROME_BIN` is set in
+  the image.
+
+## Running things
+
+- `npm start` — `ng serve` on http://localhost:4200 (port forwarded from the devcontainer).
+- `npm run build` — production build into `dist/{{ app_name }}/`.
+- `npm test` — Karma/Jasmine unit tests (watch mode); `npm test -- --watch=false` for a
+  single run, which is what the pre-commit hook does.
+- `npm run lint` — ESLint over `src/**/*.ts` and the templates.
+- `npx ng generate component features/foo` (or `service`, `guard`, ...) — scaffold new
+  pieces so they follow the workspace conventions.
+
+## Conventions
+
+- Components, directives and pipes are **standalone**; never add an `NgModule`.
+- Add dependencies with `npm install` / `npm install --save-dev`; do not hand-edit
+  `package.json` dependency ranges.
+- Every new component/service in `src/app/` gets a matching `*.spec.ts`; the pre-commit
+  hook runs the full Karma suite.

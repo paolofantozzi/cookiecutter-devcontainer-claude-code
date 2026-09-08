@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import tomllib
@@ -17,6 +18,25 @@ def _read_pyproject(project_dir: Path) -> dict[str, Any]:
         return tomllib.loads(path.read_text(encoding='utf-8'))
     except (tomllib.TOMLDecodeError, OSError):
         return {}
+
+
+def _read_package_json(project_dir: Path) -> dict[str, Any]:
+    path = project_dir / 'package.json'
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _is_angular_project(package_json: dict[str, Any]) -> bool:
+    deps = {
+        **(package_json.get('dependencies') or {}),
+        **(package_json.get('devDependencies') or {}),
+    }
+    return '@angular/core' in deps or '@angular/cli' in deps
 
 
 def _dependency_names(pyproject: dict[str, Any]) -> str:
@@ -53,6 +73,8 @@ def _looks_like_bare_workspace(pyproject: dict[str, Any]) -> bool:
 
 
 def _detect_project_type(project_dir: Path, deps: str, pyproject: dict[str, Any]) -> str:
+    if _is_angular_project(_read_package_json(project_dir)):
+        return 'angular'
     if (project_dir / 'manage.py').exists() or 'django' in deps:
         return 'django_drf'
     # Notebooks, or a stack nobody installs for a CLI tool. Plain pandas/numpy is not
@@ -94,6 +116,56 @@ def _detect_package_import_name(project_dir: Path) -> str:
             if child.is_dir() and (child / '__init__.py').exists():
                 return child.name
     return ''
+
+
+def _detect_angular_app_name(project_dir: Path) -> str:
+    path = project_dir / 'angular.json'
+    if not path.exists():
+        return ''
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except (json.JSONDecodeError, OSError):
+        return ''
+    projects = data.get('projects', {}) if isinstance(data, dict) else {}
+    if isinstance(projects, dict) and projects:
+        default = data.get('defaultProject')
+        return str(default) if default in projects else next(iter(projects))
+    return ''
+
+
+def _detect_node_version(package_json: dict[str, Any]) -> str:
+    engines = package_json.get('engines', {})
+    requires = str(engines.get('node', '')) if isinstance(engines, dict) else ''
+    match = re.search(r'(\d+)', requires)
+    if not match:
+        return ''
+    return '20' if int(match.group(1)) <= 20 else '22'
+
+
+def _detect_package_json_author(package_json: dict[str, Any]) -> dict[str, Any]:
+    author = package_json.get('author')
+    if isinstance(author, dict):
+        detected = {}
+        if author.get('name'):
+            detected['author_name'] = str(author['name'])
+        if author.get('email'):
+            detected['author_email'] = str(author['email'])
+        return detected
+    if isinstance(author, str) and author.strip():
+        match = re.match(r'^\s*(?P<name>[^<]+?)\s*(?:<(?P<email>[^>]+)>)?\s*$', author)
+        if match:
+            detected = {'author_name': match.group('name')}
+            if match.group('email'):
+                detected['author_email'] = match.group('email')
+            return detected
+    return {}
+
+
+def _detect_npm_license(package_json: dict[str, Any]) -> str:
+    raw = str(package_json.get('license', '')).strip()
+    if raw in ('MIT', 'Apache-2.0'):
+        return raw
+    return 'None'
 
 
 def _detect_django_project_slug(project_dir: Path) -> str:
@@ -207,6 +279,16 @@ def detect_answers(project_dir: Path) -> dict[str, Any]:
         python_version = _detect_python_version(pyproject)
         if python_version:
             detected['python_version'] = python_version
+    elif project_type == 'angular':
+        package_json = _read_package_json(project_dir)
+        app_name = _detect_angular_app_name(project_dir) or str(package_json.get('name', ''))
+        if app_name:
+            detected['app_name'] = app_name
+        node_version = _detect_node_version(package_json)
+        if node_version:
+            detected['node_version'] = node_version
+        detected.update(_detect_package_json_author(package_json))
+        detected['license_id'] = _detect_npm_license(package_json)
     else:
         slug = _detect_django_project_slug(project_dir)
         if slug:

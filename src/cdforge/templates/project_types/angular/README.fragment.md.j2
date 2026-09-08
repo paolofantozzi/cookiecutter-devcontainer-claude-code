@@ -1,0 +1,20 @@
+## Usage
+
+This is an Angular single-page app scaffolded with standalone components and the Angular
+CLI. `npm install` runs automatically when the devcontainer is created.
+
+```console
+$ npm start                 # ng serve — dev server on http://localhost:4200
+$ npm run build             # production build into dist/{{ app_name }}/
+$ npx ng generate component features/foo
+```
+
+## Development
+
+```console
+$ npm test -- --watch=false # Karma/Jasmine unit tests (headless Chromium), single run
+$ npm run lint              # ESLint over src/
+```
+
+`npm test` on its own stays in watch mode. The pre-commit hook runs `npm run lint` and the
+test suite once against headless Chromium before a commit is accepted.

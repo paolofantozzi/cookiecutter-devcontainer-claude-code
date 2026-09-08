@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+{% if stack == 'node' %}
+echo "Running the linter and the test suite before allowing this commit..."
+{% include "precommit.fragment.sh.j2" %}
+{% else %}
 echo "Running ruff and the test suite before allowing this commit..."
 
 uv run ruff check .
 uv run ruff format --check .
 {% include "precommit.fragment.sh.j2" %}
+{% endif %}
 
 echo "All checks passed."

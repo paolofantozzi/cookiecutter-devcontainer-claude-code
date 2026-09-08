@@ -64,9 +64,12 @@ VARIANTS=(
   "ds-analysis|data_science|"
   "ds-torch|data_science|ml_stack=deep-learning"
   "ds-firewall|data_science|network_firewall=allowlist"
+  "ng-default|angular|"
+  "ng-firewall|angular|network_firewall=allowlist"
   "py-adopt|python_uv_tool||adopt"
   "dj-adopt|django_drf|database=postgres include_celery=false|adopt"
   "ds-adopt|data_science||adopt"
+  "ng-adopt|angular||adopt"
 )
 
 if [ "${LIST_ONLY:-0}" = 1 ]; then
@@ -121,6 +124,8 @@ if ptype == "python_uv_tool":
 elif ptype == "data_science":
     a.update(package_import_name="app_lab", python_version="3.12", ml_stack="analysis",
              compute_target="cpu", experiment_tracking="mlflow", license_id="MIT")
+elif ptype == "angular":
+    a.update(app_name="app-ui", node_version="22", license_id="MIT")
 else:
     a.update(django_project_slug="app_config", initial_app_name="core",
              database="postgres", auth_method="simplejwt", include_celery=False,
@@ -152,8 +157,14 @@ else
   if [ "$host_dev" -eq 0 ]; then ok "no host block devices"; else bad "no host block devices" "found $host_dev"; fi
 fi
 
-uv run ruff check . >/dev/null 2>&1 && ok "ruff check" || bad "ruff check" "lint errors"
-if uv run pytest -q >/tmp/e2e_pytest.log 2>&1; then ok "pytest"; else bad "pytest" "failing"; tail -8 /tmp/e2e_pytest.log; fi
+if [ "$E2E_PTYPE" = "angular" ]; then
+  if npm run lint >/tmp/e2e_lint.log 2>&1; then ok "npm run lint"; else bad "npm run lint" "lint errors"; tail -12 /tmp/e2e_lint.log; fi
+  if npm test -- --watch=false >/tmp/e2e_test.log 2>&1; then ok "npm test (headless karma)"; else bad "npm test" "failing"; tail -15 /tmp/e2e_test.log; fi
+  if npm run build >/tmp/e2e_build.log 2>&1; then ok "npm run build"; else bad "npm run build" "failing"; tail -12 /tmp/e2e_build.log; fi
+else
+  uv run ruff check . >/dev/null 2>&1 && ok "ruff check" || bad "ruff check" "lint errors"
+  if uv run pytest -q >/tmp/e2e_pytest.log 2>&1; then ok "pytest"; else bad "pytest" "failing"; tail -8 /tmp/e2e_pytest.log; fi
+fi
 
 if [ "$E2E_PTYPE" = "django_drf" ]; then
   if uv run python manage.py migrate --noinput >/tmp/e2e_migrate.log 2>&1; then ok "django migrate"; else bad "django migrate" "failed"; tail -8 /tmp/e2e_migrate.log; fi

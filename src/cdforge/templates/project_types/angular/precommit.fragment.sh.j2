@@ -1,0 +1,5 @@
+
+# Lint (ESLint via ng), then the Karma/Jasmine unit tests once against headless Chromium.
+# karma.conf.js pins the ChromeHeadlessNoSandbox launcher, so no --browsers flag is needed.
+npm run lint
+npm test -- --watch=false

@@ -8,6 +8,7 @@ FIXTURE = Path(__file__).parent / 'fixtures' / 'answers_python_uv_tool.json'
 DJANGO_FIXTURE = Path(__file__).parent / 'fixtures' / 'answers_django_drf.json'
 DATA_SCIENCE_FIXTURE = Path(__file__).parent / 'fixtures' / 'answers_data_science.json'
 GENERIC_FIXTURE = Path(__file__).parent / 'fixtures' / 'answers_generic.json'
+ANGULAR_FIXTURE = Path(__file__).parent / 'fixtures' / 'answers_angular.json'
 
 runner = CliRunner()
 
@@ -38,6 +39,7 @@ def test_list_types_lists_every_project_type() -> None:
     assert 'django_drf' in result.output
     assert 'data_science' in result.output
     assert 'generic' in result.output
+    assert 'angular' in result.output
 
 
 def test_list_skills_lists_optional_skills() -> None:
@@ -87,6 +89,21 @@ def test_adopt_on_a_freshly_scaffolded_notebook_project_finds_nothing_to_change(
     output_dir = tmp_path / 'churn-lab'
     runner.invoke(
         app, ['new', '--answers-file', str(DATA_SCIENCE_FIXTURE), '--output-dir', str(output_dir)]
+    )
+
+    result = runner.invoke(app, ['adopt', str(output_dir), '--dry-run'])
+
+    assert result.exit_code == 0, result.output
+    assert 'already aligned' in result.output
+    assert 'conflict' not in result.output
+
+
+def test_adopt_on_a_freshly_scaffolded_angular_project_finds_nothing_to_change(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / 'dashboard-ui'
+    runner.invoke(
+        app, ['new', '--answers-file', str(ANGULAR_FIXTURE), '--output-dir', str(output_dir)]
     )
 
     result = runner.invoke(app, ['adopt', str(output_dir), '--dry-run'])

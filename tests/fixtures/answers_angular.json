@@ -1,0 +1,14 @@
+{
+  "project_name": "Dashboard UI",
+  "git_remote_url": "",
+  "project_type": "angular",
+  "gpu_enabled": false,
+  "docker_mode": "none",
+  "network_firewall": "none",
+  "optional_skills": [],
+  "app_name": "dashboard-ui",
+  "node_version": "22",
+  "license_id": "MIT",
+  "author_name": "Test Author",
+  "author_email": "author@example.com"
+}

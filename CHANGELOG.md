@@ -5,6 +5,26 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.19] - 2026-09-08
+
+### Added
+
+- New **`angular` project type**: an Angular single-page app (standalone components, the
+  Angular CLI, ESLint + Prettier, Karma/Jasmine unit tests) running in the same sandboxed
+  devcontainer, driven by `npm` instead of `uv`. The image is
+  `mcr.microsoft.com/devcontainers/typescript-node` and bakes in headless Chromium
+  (`CHROME_BIN`); `karma.conf.js` pins a `--no-sandbox` launcher so `ng test` runs in the
+  unprivileged container. `post-create.sh` runs `npm install` and `.githooks/pre-commit`
+  runs `npm run lint` + `npm test -- --watch=false`. `cdforge adopt` detects an existing
+  project as `angular` from a `package.json` that depends on `@angular/core`.
+
+### Changed
+
+- `ProjectType` gained a `stack` field (`'python'` by default, `'node'` for `angular`), and
+  the shared `templates/common/` files (`post-create.sh`, `.githooks/pre-commit`,
+  `.gitignore`, `CLAUDE.md`, the `project-governance` skill) now branch on it instead of
+  assuming the Python/`uv`/`ruff` toolchain everywhere.
+
 ## [0.1.18] - 2026-09-07
 
 ### Added

@@ -15,7 +15,7 @@ Apply these rules on every change to this project, without being asked:
 
 ## Versioning
 
-- The project version lives in `pyproject.toml` under `[project].version`. Follow semantic
+- The project version lives in {% if stack == 'node' %}`package.json` under `"version"`{% else %}`pyproject.toml` under `[project].version`{% endif %}. Follow semantic
   versioning: patch for fixes, minor for backward-compatible features, major for breaking
   changes.
 - On every notable change, bump the version and add an entry to `CHANGELOG.md` following the
