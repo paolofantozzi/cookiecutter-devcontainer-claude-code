@@ -230,4 +230,40 @@ def run_wizard(
     for question in project_type.questions:
         answers[question.key] = _ask_question(question, defaults.get(question.key))
 
+    # Postgres/Redis are run from inside the devcontainer (docker compose up -d), which needs
+    # an in-container Docker daemon. These questions come after docker_mode, so re-ask it
+    # here rather than let build_context reject the combination.
+    if (answers.get('database') == 'postgres' or answers.get('include_celery')) and answers.get(
+        'docker_mode'
+    ) == 'none':
+        questionary.print(
+            'Postgres/Redis run inside the devcontainer via its own Docker daemon, so this '
+            "project needs docker_mode 'sysbox' or 'privileged' (not 'none').",
+            style='fg:yellow',
+        )
+        # Sysbox has no NVIDIA-runtime support, so a GPU project can only take 'privileged'.
+        service_docker_choices = [
+            questionary.Choice(
+                'Privileged docker-in-docker — full Docker but REMOVES host isolation',
+                value='privileged',
+            )
+        ]
+        if not answers['gpu_enabled']:
+            service_docker_choices.insert(
+                0,
+                questionary.Choice(
+                    'Sysbox — Docker inside, still unprivileged/no host access '
+                    '(requires sysbox on the host)',
+                    value='sysbox',
+                ),
+            )
+        answers['docker_mode'] = questionary.select(
+            'In-container Docker for the backing services?',
+            choices=service_docker_choices,
+            default=service_docker_choices[0].value,
+        ).ask()
+        if answers['network_firewall'] == 'strict':
+            # In-container Docker needs root at runtime, so strict cannot apply there.
+            answers['network_firewall'] = 'allowlist'
+
     return answers, output_dir

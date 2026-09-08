@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.20] - 2026-09-08
+
+### Changed
+
+- **The devcontainer is never a Docker Compose project any more.** `django_drf` used to run
+  its Postgres/Redis as sibling containers via the Dev Containers Docker Compose workflow,
+  which made `devcontainer.json` a compose file with an `app` service. Now `devcontainer.json`
+  always uses the plain single-container `build.dockerfile` layout, and a `django_drf`
+  project with Postgres/Redis ships a plain `docker-compose.yml` (db/redis only, **no `app`
+  service**, ports on `127.0.0.1`) that the developer runs from *inside* the devcontainer
+  with its in-container Docker daemon (`docker compose up -d`). `settings.py` / `.env.example`
+  point Django at `localhost` instead of the `db`/`redis` hostnames.
+- **`database='postgres'` / `include_celery` now require `docker_mode` `sysbox` or
+  `privileged`.** Since the backing services run inside the devcontainer, an in-container
+  Docker daemon is mandatory: `answers.validate_answer_compatibility` rejects the combination
+  with `docker_mode='none'`, and the wizard re-prompts for the Docker mode after the
+  project-type questions.
+- **`cdforge adopt` never writes a compose file.** A project's own `docker-compose.yml` is
+  create-only: written if missing, otherwise reported as a conflict and left untouched (it is
+  not merged into, or shadowed by, the devcontainer). The `.devcontainer/docker-compose.yml`
+  override path and the `compose.fragment.yml.j2` shared fragment are removed, along with the
+  `use_compose` / `compose_file_location` / `compose_files` context values (replaced by the
+  single `needs_service_stack` flag).
+
 ## [0.1.19] - 2026-09-08
 
 ### Added

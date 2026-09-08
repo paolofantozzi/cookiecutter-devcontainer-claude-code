@@ -1,18 +1,8 @@
 {
   "name": {{ project_name | tojson }},
-{% if use_compose %}
-{% if compose_files | length == 1 %}
-  "dockerComposeFile": {{ compose_files[0] | tojson }},
-{% else %}
-  "dockerComposeFile": {{ compose_files | tojson }},
-{% endif %}
-  "service": "app",
-  "workspaceFolder": "/workspaces/{{ project_slug }}",
-{% else %}
   "build": {
     "dockerfile": "Dockerfile"
   },
-{% endif %}
   "remoteUser": "{{ remote_user }}",
   "features": {
 {% if enable_docker %}
@@ -26,7 +16,7 @@
     ,"{{ feature_id }}": {{ feature_opts | tojson }}
 {% endfor %}
   },
-{% if gpu_enabled and not use_compose %}
+{% if gpu_enabled %}
   "hostRequirements": {
     "gpu": "optional"
   },
@@ -47,12 +37,10 @@
 {% if post_start_command %}
   "postStartCommand": {{ post_start_command | tojson }},
 {% endif %}
-{% if not use_compose %}
   "mounts": [
     "source=${localWorkspaceFolder}/.devcontainer,target=${containerWorkspaceFolder}/.devcontainer,type=bind,readonly",
     "source=${localWorkspaceFolder}/.devcontainer/claude-home,target=/home/{{ remote_user }}/.claude,type=bind"
   ],
-{% endif %}
   "containerEnv": {
     "CLAUDE_CONFIG_DIR": "/home/{{ remote_user }}/.claude",
     "CDFORGE_DEVCONTAINER": "1"

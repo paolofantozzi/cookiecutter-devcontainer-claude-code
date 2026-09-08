@@ -22,6 +22,7 @@ This is a Django REST Framework API managed with `uv`. Follow these conventions:
 - New model fields need a migration (`uv run python manage.py makemigrations`) committed
   alongside the model change.
 {% if database == 'postgres' %}
-- The local Postgres instance runs via `docker compose up -d db` (uses the devcontainer's
-  own isolated Docker-in-Docker daemon); connection settings come from `DATABASE_URL`.
+- The local Postgres instance runs via `docker compose up -d` (uses the devcontainer's own
+  in-container Docker daemon; it is not part of the devcontainer itself). It publishes on
+  `127.0.0.1:5432` and connection settings come from `DATABASE_URL` (`localhost`).
 {% endif %}

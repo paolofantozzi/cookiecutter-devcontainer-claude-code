@@ -1,8 +1,37 @@
-{% if use_compose and compose_file_location == 'root' %}
-# Dev Containers "Docker Compose" project. The `app` service IS the devcontainer that
-# Claude Code runs in; `db`/`redis` are sibling containers on the same network. The app
-# container is NOT privileged and mounts only this workspace, so nothing on the host
-# filesystem is reachable from inside it. The services are reachable by hostname (`db`,
-# `redis`) over the compose network.
-{% include "compose.fragment.yml.j2" %}
+{% if needs_service_stack %}
+# Backing services for local development. This file is NOT part of the devcontainer
+# definition (devcontainer.json builds a single plain container). Bring it up from *inside*
+# the devcontainer with the in-container Docker daemon:
+#
+#     docker compose up -d
+#
+# The services publish on 127.0.0.1 only; Django reaches them at `localhost` (see
+# `.env.example`). `docker_mode` is `sysbox` or `privileged` for this project precisely so
+# this daemon exists.
+services:
+{% if database == 'postgres' %}
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: {{ project_slug.replace('-', '_') }}
+      POSTGRES_USER: {{ project_slug.replace('-', '_') }}
+      POSTGRES_PASSWORD: devpassword
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+{% endif %}
+{% if include_celery %}
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+{% endif %}
+{% if database == 'postgres' %}
+
+volumes:
+  db-data:
+{% endif %}
 {% endif %}

@@ -79,12 +79,13 @@ in it that **the host** later runs — git hooks under `.git/hooks`, an editor t
 `.vscode/`, a script you execute on the host — runs with your privileges, not the
 container's. Prefer working inside the container, and review changes (they are tracked in
 git) before running project tooling directly on the host.
-{% if use_compose %}
+{% if needs_service_stack %}
 
-Backing services (Postgres/Redis) run as **sibling containers** on a private compose
-network, reachable by hostname (`db`, `redis`). They are managed by the host's Docker at
-your request when the devcontainer starts — the devcontainer itself never gets the Docker
-socket or any host access.
+Backing services (Postgres/Redis) are defined in `docker-compose.yml`, which is **not** part
+of the devcontainer. Start it from inside the container with the in-container Docker daemon
+(`docker compose up -d`); the services publish on `127.0.0.1` and Django reaches them at
+`localhost`. `docker_mode` is `sysbox` or `privileged` for this project so that daemon
+exists.
 {% endif %}
 {% if docker_mode == 'sysbox' %}
 

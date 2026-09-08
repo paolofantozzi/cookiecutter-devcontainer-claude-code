@@ -8,7 +8,7 @@
 # host's own listening ports — SSH, databases, whatever else is bound — are reachable), and
 # so are the LAN and the whole internet. This script closes that: everything is rejected
 # except the loopback, replies to connections we opened, DNS, the container's own networks
-# (the compose siblings and any nested Docker), and an explicit allowlist of hosts.
+# (any nested/in-container Docker), and an explicit allowlist of hosts.
 #
 # It is baked into the image as /usr/local/bin/cdforge-firewall (root-owned, not writable
 # from inside the container) and run by postStartCommand on every container start. Re-run it
@@ -95,8 +95,8 @@ for gw in $gateways; do
   iptables -A "$CHAIN" -d "$gw" -j REJECT --reject-with icmp-port-unreachable
 done
 
-# The container's own attached networks: the compose siblings (db, redis) and, when
-# in-container Docker is on, the nested containers' bridge.
+# The container's own attached networks: when in-container Docker is on, the nested
+# containers' bridge (where a `docker compose up` db/redis lands).
 subnets="$(ip -o -f inet addr show scope global | awk '{print $4}' | sort -u)"
 for subnet in $subnets; do
   iptables -A "$CHAIN" -d "$subnet" -j ACCEPT

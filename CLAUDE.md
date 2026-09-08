@@ -66,16 +66,17 @@ according to `adopt.classify()`:
   conflict and left untouched (`--write-suggestions` writes `<name>.cdforge-new` alongside).
 - everything else is application code and is never written into an existing project.
 
-When a compose-based type is adopted into a project that already has its own
-`docker-compose.yml`, the generated compose file cannot go to the root (overwriting it is
-destructive, leaving it alone would point `devcontainer.json` at a file with no `app`
-service). `adopt` therefore re-renders it as `.devcontainer/docker-compose.cdforge.yml` and
-`devcontainer.json` lists both files — Docker Compose merges them and resolves the relative
-paths of *every* file against the first file's directory (the project root), which is why the
-override's `.`/`./.devcontainer` paths still mean what they say. The choice is driven by
-`compose_file_location` (`root` | `devcontainer`) in `context_builder.py`; it is derived per
-run, never stored in `.cdforge.json`, so a generated project keeps its root compose file and
-adoption stays idempotent.
+The devcontainer is **never** a Docker Compose project. `devcontainer.json` always uses the
+plain `build.dockerfile` layout — a single, plain container that is only the dev/Claude Code
+environment. A `django_drf` project that needs Postgres/Redis ships a plain
+`docker-compose.yml` (db/redis only, **no `app` service**) that the developer brings up from
+*inside* the container with the in-container Docker daemon (`docker compose up -d`); that is
+what `docker_mode: sysbox` / `privileged` is for, and `answers.validate_answer_compatibility`
+rejects `database='postgres'` / `include_celery` with `docker_mode='none'`. `adopt` writes no
+compose file at all: a project's own `docker-compose.yml` is *create-only* (written if
+missing, reported as a conflict otherwise — cdforge's is db/redis with `localhost` ports and
+may not match the project's). `context_builder.needs_service_stack` is the single derived
+flag (`django_drf` + postgres/celery); the templates branch on it.
 
 Consequences worth preserving: adoption is idempotent (a freshly scaffolded project reports
 "already aligned" — `tests/test_cli.py` asserts this round trip), it never edits
@@ -181,9 +182,7 @@ Rules of its own worth keeping:
   `.devcontainer/Dockerfile.j2`, `pyproject.toml.j2`, source tree, ...) and is rendered on
   top of `common/`.
 - `templates/project_types/<id>/*.fragment.*.j2` (e.g. `CLAUDE.fragment.md.j2`,
-  `precommit.fragment.sh.j2`, `compose.fragment.yml.j2` — which is shared by the root
-  `docker-compose.yml` and the `.devcontainer/docker-compose.cdforge.yml` override) live
-  *outside* `template/` — they are never rendered as
+  `precommit.fragment.sh.j2`) live *outside* `template/` — they are never rendered as
   standalone output files, only pulled in via `{% include %}` from a `common/` template, so
   a single common file (`CLAUDE.md.j2`, `.githooks/pre-commit.j2`) can carry a
   type-specific section.
@@ -209,8 +208,8 @@ for the full reasoning if changing them:
   `docker_mode` context value (`none` | `sysbox` | `privileged`, derived in
   `context_builder.py`; the older boolean `enable_docker` still maps to `privileged`):
   - `none` (default): no in-container Docker; ordinary unprivileged container.
-  - `sysbox`: adds `--runtime=sysbox-runc` (build layout) or `runtime: sysbox-runc` on the
-    compose `app` service, and starts a Docker daemon via `.devcontainer/docker-start.sh`.
+  - `sysbox`: adds `--runtime=sysbox-runc` to `runArgs` and starts a Docker daemon via
+    `.devcontainer/docker-start.sh`.
     The container stays unprivileged with no host access — this is the preferred way to give
     Claude Code its own Docker. It requires Sysbox on the host (untestable in CI; validate
     with a real rebuild on a sysbox host). **`sysbox` is incompatible with `gpu_enabled`** —
@@ -228,15 +227,17 @@ for the full reasoning if changing them:
     start. The script also switches Debian's iptables alternative to `iptables-nft` when the
     legacy backend cannot create the `nat` table, which is what dockerd needs on hosts whose
     kernel only has the nftables backend.
-- **Backing services are sibling containers, not Docker-in-Docker.** `django_drf` projects
-  that need Postgres/Redis use the Dev Containers Docker Compose workflow (`use_compose`): the
-  devcontainer is the unprivileged `app` service and the databases are siblings on the compose
-  network, reached by hostname (`db`, `redis`). This gives real services without an
-  in-container daemon or privilege. `use_compose` is derived in `context_builder.py`; when it
-  is false the devcontainer uses the plain `build.dockerfile` layout. In an adopted project
-  the same services may instead live in `.devcontainer/docker-compose.cdforge.yml` (see
-  `compose_file_location` below), which has the side benefit of being inside the read-only
-  mount.
+- **Backing services run inside the devcontainer, not as sibling containers.** A `django_drf`
+  project that needs Postgres/Redis ships a plain `docker-compose.yml` (db/redis only, no
+  `app` service, ports published on `127.0.0.1`) that the developer runs from *inside* the
+  devcontainer with its in-container Docker daemon (`docker compose up -d`); `settings.py` /
+  `.env.example` point Django at `localhost`. This deliberately requires
+  `docker_mode: sysbox` / `privileged` — `answers.validate_answer_compatibility` rejects
+  `database='postgres'` / `include_celery` with `docker_mode='none'` (the wizard re-prompts
+  after the per-type questions; `build_context` raises `AnswersError`). The devcontainer
+  itself is always the plain single-container `build.dockerfile` layout;
+  `needs_service_stack` in `context_builder.py` only gates whether the `docker-compose.yml`
+  file is emitted.
 - **`.devcontainer/` is bind-mounted read-only into the container** (over the read-write
   workspace mount, with `claude-home` re-mounted read-write). This stops in-container code
   from rewriting `devcontainer.json`/`Dockerfile`/`post-create.sh`, which the host trusts and
@@ -258,15 +259,14 @@ for the full reasoning if changing them:
   - `none` (default): unrestricted, and the generated README/CLAUDE must say so plainly
     rather than letting "sandboxed" imply the network is covered.
   - `allowlist`: `.devcontainer/init-firewall.sh` is **copied into the image** as
-    `/usr/local/bin/cdforge-firewall` (root-owned, so it cannot be rewritten from inside;
-    the COPY path differs between the plain layout, whose build context is `.devcontainer/`,
-    and the compose layout, whose context is the project root) and run by `postStartCommand`
-    after `docker-start.sh`, so the firewall has the last word. It rejects egress to the
-    default gateway, allows DNS to the container's resolvers (a deliberate hole when the
-    resolver *is* the gateway), allows the container's own attached subnets (compose
-    siblings, nested Docker), allows an explicit domain allowlist, and rejects the rest;
-    IPv6 is closed outright. Capabilities come from `runArgs: --cap-add=NET_ADMIN` (plain)
-    or `cap_add` on the `app` service (compose) — never `--privileged`.
+    `/usr/local/bin/cdforge-firewall` (root-owned, so it cannot be rewritten from inside; the
+    build context is always `.devcontainer/`, so the COPY path is unprefixed) and run by
+    `postStartCommand` after `docker-start.sh`, so the firewall has the last word. It rejects
+    egress to the default gateway, allows DNS to the container's resolvers (a deliberate hole
+    when the resolver *is* the gateway), allows the container's own attached subnets (any
+    nested/in-container Docker, where a `docker compose up` db/redis lands), allows an
+    explicit domain allowlist, and rejects the rest; IPv6 is closed outright. Capabilities
+    come from `runArgs: --cap-add=NET_ADMIN` / `--cap-add=NET_RAW` — never `--privileged`.
   - `strict`: `allowlist` plus a Dockerfile step that removes the base image's blanket
     NOPASSWD sudo, leaving one sudoers rule for the firewall script, so the rules cannot be
     flushed from inside. It is incompatible with in-container Docker (whose daemon needs
@@ -274,12 +274,14 @@ for the full reasoning if changing them:
     degradation if either option changes.
   Keep the docs honest about which of these is in effect: in `allowlist` mode
   `sudo iptables -F` still works, so it stops incidental traffic, not a determined process.
-- Dev services in `compose.fragment.yml.j2` publish on `127.0.0.1` only. The devcontainer
-  reaches `db`/`redis` by hostname on the compose network; publishing on all interfaces
-  would put a fixed-password dev database on the LAN.
-- GPU passthrough is `runArgs: ["--gpus=all"]` in the plain build layout, and a device
-  reservation on the `app` service in the compose layout. It cannot be combined with
+- Dev services in `django_drf`'s `docker-compose.yml` publish on `127.0.0.1` only. Django
+  reaches `db`/`redis` at `localhost` via the published port (the devcontainer is not on the
+  services' network); publishing on all interfaces would put a fixed-password dev database on
+  the LAN.
+- GPU passthrough is `runArgs: ["--gpus=all"]`. It cannot be combined with
   `docker_mode: sysbox` (see the sysbox note above); pair a GPU with `none` or `privileged`.
+  For a `django_drf` project with Postgres, that means `privileged` (Postgres already rules
+  out `none`).
 
 ## Language and style
 
@@ -331,10 +333,11 @@ adoption still works, and keeps this repository's devcontainer current with the 
   / the docker/gpu capability *inside the real container*, then tears it down. It needs
   docker, `uv`, and the Dev Containers CLI; `sysbox` and `gpu` variants are auto-skipped when
   the host lacks the runtime. The `py-adopt`/`dj-adopt` variants cover `cdforge adopt`: they
-  scaffold a project, delete everything cdforge manages (and give the compose project a
-  `docker-compose.yml` of its own), then adopt it and build the result — which is the only
-  way to verify the compose-override layout for real. Run `scripts/e2e.sh --list` to see
-  variants,
+  scaffold a project, delete everything cdforge manages (and give the django project a
+  `docker-compose.yml` of its own so adoption meets a create-only conflict), then adopt it
+  and build the result. The scaffolded `dj-*` postgres variants `docker compose up -d` the
+  db/redis stack *inside* the container before `migrate`, which is the real workflow. Run
+  `scripts/e2e.sh --list` to see variants,
   `scripts/e2e.sh --only py-default,dj-sqlite` for a subset. The `ds-*` variants also
   execute the first generated notebook and exercise the notebook-stripping pre-commit hook
   inside the container. This has found real build bugs

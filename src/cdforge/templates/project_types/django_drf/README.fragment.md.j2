@@ -1,12 +1,13 @@
 ## Usage
 
-{% if use_compose %}
+{% if needs_service_stack %}
 The backing service{% if database == 'postgres' and include_celery %}s{% endif %}
 ({% if database == 'postgres' %}Postgres{% endif %}{% if database == 'postgres' and include_celery %} and {% endif %}{% if include_celery %}Redis{% endif %})
-run as sibling containers that VS Code starts automatically together with the devcontainer,
-so there is nothing to `docker compose up` by hand.
+live in `docker-compose.yml`. It is **not** part of the devcontainer — bring it up from
+inside the container with the in-container Docker daemon:
 
 ```console
+$ docker compose up -d
 $ cp .env.example .env
 $ uv run python manage.py migrate
 $ uv run python manage.py runserver

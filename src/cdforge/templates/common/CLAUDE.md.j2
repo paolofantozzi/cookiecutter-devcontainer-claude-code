@@ -39,10 +39,10 @@ container:
   through the Docker bridge gateway. Only the filesystem is sandboxed. Treat anything you send
   over the network as leaving the sandbox.
 {% endif %}
-{% if use_compose %}
-- Talks to its backing services (Postgres/Redis) as sibling containers over a private
-  compose network, by hostname (`db`, `redis`). Those services are not on the host
-  filesystem and the container cannot control the host's Docker.
+{% if needs_service_stack %}
+- Provides its backing services (Postgres/Redis) through `docker-compose.yml`, which you run
+  yourself from inside the container (`docker compose up -d`) using the in-container Docker
+  daemon. Those containers stay inside the sandbox and are reached at `localhost`.
 {% endif %}
 {% if docker_mode == 'sysbox' %}
 - Has an in-container Docker daemon isolated by the Sysbox runtime. You can `docker
@@ -58,8 +58,7 @@ container:
   responding after a restart, run `bash .devcontainer/docker-start.sh`.
 {% endif %}
 {% if gpu_enabled %}
-- Has GPU access for processes running directly inside the devcontainer
-  ({% if use_compose %}via the `app` service's device reservation{% else %}`--gpus=all`{% endif %}).
+- Has GPU access for processes running directly inside the devcontainer (`--gpus=all`).
 {% endif %}
 - Starts every terminal session in Claude Code's `auto` permission mode, so commands run
   without interactive approval prompts. `git push` is discouraged at multiple layers (a

@@ -167,32 +167,6 @@ def _render_to_dict(answers: dict[str, Any]) -> dict[str, tuple[str, bool]]:
     return rendered
 
 
-def _resolve_compose_layout(
-    answers: dict[str, Any],
-    project_dir: Path,
-    rendered: dict[str, tuple[str, bool]],
-) -> tuple[dict[str, tuple[str, bool]], str]:
-    """A compose-based project type generates a root `docker-compose.yml` that defines the
-    devcontainer's `app` service. When the adopted project already has a *different* compose
-    file, overwriting it is not an option and leaving it alone would point devcontainer.json
-    at a file with no `app` service — so the generated compose is re-rendered as an override
-    under `.devcontainer/` and devcontainer.json loads both files."""
-    existing = project_dir / 'docker-compose.yml'
-    generated = rendered.get('docker-compose.yml')
-    if generated is None or not existing.exists():
-        return rendered, ''
-    if existing.read_text(encoding='utf-8') == generated[0]:
-        return rendered, ''
-    override = _render_to_dict({**answers, 'compose_file_location': 'devcontainer'})
-    note = (
-        'This project already has a docker-compose.yml, so the devcontainer services were '
-        'generated as .devcontainer/docker-compose.cdforge.yml and devcontainer.json loads '
-        'both files (your services are kept; the override adds `app` and its backing '
-        'services).'
-    )
-    return override, note
-
-
 def _tooling_notes(project_dir: Path, project_type_id: str) -> list[str]:
     """The generated pre-commit hook runs the project's linter and test suite; warn when
     the adopted project does not declare the tools it needs (we never rewrite its
@@ -238,7 +212,7 @@ def plan_alignment(answers: dict[str, Any], project_dir: Path) -> AlignmentPlan:
         raise AdoptError(f'{project_dir} is not an existing directory')
 
     plan = AlignmentPlan(project_dir=project_dir, project_type_id=answers['project_type'])
-    rendered, compose_note = _resolve_compose_layout(answers, project_dir, _render_to_dict(answers))
+    rendered = _render_to_dict(answers)
     for relative, (content, executable) in sorted(rendered.items()):
         category = classify(relative)
         if category == PROJECT_OWNED:
@@ -265,9 +239,7 @@ def plan_alignment(answers: dict[str, Any], project_dir: Path) -> AlignmentPlan:
             action = UNCHANGED if existing == content else CONFLICT
             plan.changes.append(PlannedChange(relative, category, action, content, executable))
 
-    plan.notes = ([compose_note] if compose_note else []) + _tooling_notes(
-        project_dir, answers['project_type']
-    )
+    plan.notes = _tooling_notes(project_dir, answers['project_type'])
     return plan
 
 

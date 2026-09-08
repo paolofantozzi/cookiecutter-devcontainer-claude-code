@@ -382,6 +382,8 @@ DJANGO_ANSWERS = {
     'api_docs': 'drf-spectacular',
     'author_name': 'Jane Doe',
     'author_email': 'jane@example.com',
+    # Postgres is now run from inside the devcontainer, which requires in-container Docker.
+    'docker_mode': 'sysbox',
 }
 
 OWN_COMPOSE = 'services:\n  web:\n    image: mine\n'
@@ -401,38 +403,42 @@ def make_django_project(tmp_path: Path, *, compose: str | None = None) -> Path:
     return project_dir
 
 
-def _compose_file_setting(project_dir: Path):
-    config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
-    return config['dockerComposeFile']
+def _devcontainer_config(project_dir: Path):
+    return json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
 
 
-def test_adopt_writes_a_compose_override_when_the_project_has_its_own(tmp_path: Path) -> None:
+def test_adopt_never_wires_compose_into_the_devcontainer(tmp_path: Path) -> None:
     project_dir = make_django_project(tmp_path, compose=OWN_COMPOSE)
 
     plan = plan_alignment(DJANGO_ANSWERS, project_dir)
     apply_alignment(plan, DJANGO_ANSWERS)
 
-    # The project's own compose file is neither overwritten nor reported as a conflict:
-    # the devcontainer services are added as a second file that compose merges on top.
+    # The devcontainer is always the plain single-container layout; it never loads a compose
+    # file, and adopt never writes one into .devcontainer/.
+    config = _devcontainer_config(project_dir)
+    assert config['build'] == {'dockerfile': 'Dockerfile'}
+    assert 'dockerComposeFile' not in config
+    assert not (project_dir / '.devcontainer' / 'docker-compose.cdforge.yml').exists()
+
+    # The project's own docker-compose.yml is create-only: left untouched, flagged as a
+    # conflict (cdforge would otherwise ship its own db/redis-only file there).
     assert (project_dir / 'docker-compose.yml').read_text() == OWN_COMPOSE
-    assert plan.conflicts == []
-    override = project_dir / '.devcontainer' / 'docker-compose.cdforge.yml'
-    assert 'app:' in override.read_text()
-    assert _compose_file_setting(project_dir) == [
-        '../docker-compose.yml',
-        'docker-compose.cdforge.yml',
-    ]
-    assert any('docker-compose.cdforge.yml' in note for note in plan.notes)
-
-    assert plan_alignment(DJANGO_ANSWERS, project_dir).writes == []
+    assert [c.relative_path for c in plan.conflicts] == ['docker-compose.yml']
 
 
-def test_adopt_writes_a_root_compose_file_when_the_project_has_none(tmp_path: Path) -> None:
+def test_adopt_creates_a_backing_services_compose_file_when_the_project_has_none(
+    tmp_path: Path,
+) -> None:
     project_dir = make_django_project(tmp_path)
 
     plan = plan_alignment(DJANGO_ANSWERS, project_dir)
     apply_alignment(plan, DJANGO_ANSWERS)
 
-    assert 'app:' in (project_dir / 'docker-compose.yml').read_text()
+    compose = (project_dir / 'docker-compose.yml').read_text()
+    assert 'app:' not in compose
+    assert 'postgres:16' in compose
     assert not (project_dir / '.devcontainer' / 'docker-compose.cdforge.yml').exists()
-    assert _compose_file_setting(project_dir) == '../docker-compose.yml'
+    assert 'dockerComposeFile' not in _devcontainer_config(project_dir)
+
+    # Idempotent: a second pass has nothing to write.
+    assert plan_alignment(DJANGO_ANSWERS, project_dir).writes == []

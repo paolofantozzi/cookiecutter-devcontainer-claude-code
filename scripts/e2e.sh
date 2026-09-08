@@ -47,27 +47,27 @@ done
 # All known variants:
 #   "name|project_type|extra answer keys as k=v (space separated)|scaffold mode"
 # Scaffold mode is empty for `cdforge new`, or `adopt` to check the adoption path: the
-# project is generated, its cdforge-managed files are then deleted (and, for a compose
-# project, its docker-compose.yml is replaced by one of the project's own) to look like a
-# project that predates cdforge, and `cdforge adopt` has to make it work again.
+# project is generated, its cdforge-managed files are then deleted (and a django project's
+# docker-compose.yml is replaced by one of the project's own) to look like a project that
+# predates cdforge, and `cdforge adopt` has to make it work again.
 VARIANTS=(
   "py-default|python_uv_tool|"
   "py-privileged|python_uv_tool|docker_mode=privileged"
   "py-sysbox|python_uv_tool|docker_mode=sysbox"
   "py-gpu|python_uv_tool|gpu_enabled=true"
   "dj-sqlite|django_drf|database=sqlite include_celery=false"
-  "dj-postgres-celery|django_drf|database=postgres include_celery=true"
+  "dj-postgres-celery|django_drf|database=postgres include_celery=true docker_mode=sysbox"
   "dj-privileged|django_drf|database=postgres include_celery=true docker_mode=privileged"
   "py-firewall|python_uv_tool|network_firewall=allowlist"
   "py-firewall-strict|python_uv_tool|network_firewall=strict"
-  "dj-firewall|django_drf|database=postgres include_celery=true network_firewall=allowlist"
+  "dj-firewall|django_drf|database=postgres include_celery=true docker_mode=sysbox network_firewall=allowlist"
   "ds-analysis|data_science|"
   "ds-torch|data_science|ml_stack=deep-learning"
   "ds-firewall|data_science|network_firewall=allowlist"
   "ng-default|angular|"
   "ng-firewall|angular|network_firewall=allowlist"
   "py-adopt|python_uv_tool||adopt"
-  "dj-adopt|django_drf|database=postgres include_celery=false|adopt"
+  "dj-adopt|django_drf|database=postgres include_celery=false docker_mode=sysbox|adopt"
   "ds-adopt|data_science||adopt"
   "ng-adopt|angular||adopt"
 )
@@ -167,7 +167,22 @@ else
 fi
 
 if [ "$E2E_PTYPE" = "django_drf" ]; then
-  if uv run python manage.py migrate --noinput >/tmp/e2e_migrate.log 2>&1; then ok "django migrate"; else bad "django migrate" "failed"; tail -8 /tmp/e2e_migrate.log; fi
+  # Postgres/Redis are the developer's to run from inside the devcontainer. For a scaffolded
+  # project with a docker-compose.yml, bring it up here (in-container Docker) before migrate;
+  # an adopted project's own stack is out of scope, and a sqlite project needs nothing.
+  if [ "$E2E_SCAFFOLD" != "adopt" ] && [ -f docker-compose.yml ]; then
+    docker compose up -d >/tmp/e2e_compose.log 2>&1 || true
+    for _ in $(seq 1 30); do docker compose exec -T db pg_isready >/dev/null 2>&1 && break; sleep 2; done
+  fi
+  if [ "$E2E_SCAFFOLD" = "adopt" ]; then
+    ok "django migrate (skipped: adopted project runs its own db stack)"
+  elif [ -f docker-compose.yml ] && ! docker compose ps --status running 2>/dev/null | grep -q db; then
+    ok "django migrate (skipped: no in-container db available)"
+  elif uv run python manage.py migrate --noinput >/tmp/e2e_migrate.log 2>&1; then
+    ok "django migrate"
+  else
+    bad "django migrate" "failed"; tail -8 /tmp/e2e_migrate.log
+  fi
 fi
 
 if [ "$E2E_PTYPE" = "data_science" ]; then
@@ -253,8 +268,8 @@ run_variant() {
     || { echo "  scaffold FAILED"; RESULTS+=("FAIL  $name (scaffold)"); return; }
   if [ "$smode" = "adopt" ]; then
     # Make the generated project look like one that predates cdforge: drop everything the
-    # tool manages, and give a compose project a docker-compose.yml of its own so adoption
-    # has to add the devcontainer services as an override instead of overwriting it.
+    # tool manages, and give a django project a docker-compose.yml of its own so adoption
+    # has to cope with an existing (create-only) compose file it must not overwrite.
     rm -rf "$proj/.devcontainer" "$proj/.claude" "$proj/.githooks" "$proj/.cdforge.json"
     if [ -f "$proj/docker-compose.yml" ]; then
       printf 'services:\n  legacy:\n    image: alpine:3.20\n    command: sleep infinity\n' \
@@ -262,9 +277,6 @@ run_variant() {
     fi
     ( cd "$REPO_ROOT" && uv run cdforge adopt "$proj" --answers-file "$ans" --force ) \
       || { echo "  adopt FAILED"; RESULTS+=("FAIL  $name (adopt)"); return; }
-    if [ -f "$proj/.devcontainer/docker-compose.cdforge.yml" ]; then
-      echo "  (adopted with a compose override)"
-    fi
   fi
   mkdir -p "$proj/.devcontainer/claude-home"
 
@@ -275,7 +287,7 @@ run_variant() {
   fi
 
   local body; body="$(container_checks)"
-  local pre="export E2E_PTYPE='$ptype' E2E_MODE='$mode' E2E_GPU='$gpu' E2E_FIREWALL='$firewall';"
+  local pre="export E2E_PTYPE='$ptype' E2E_MODE='$mode' E2E_GPU='$gpu' E2E_FIREWALL='$firewall' E2E_SCAFFOLD='${smode:-new}';"
   if "${DEVCONTAINER[@]}" exec --workspace-folder "$proj" bash -lc "$pre $body"; then
     echo "  -> PASS"; RESULTS+=("PASS  $name")
   else
@@ -287,10 +299,9 @@ run_variant() {
 teardown() {
   local proj="$1" uplog="$2"
   [ "$KEEP" = 1 ] && { echo "  (kept: $proj)"; return; }
-  # compose-based projects: bring the whole project down
-  if [ -f "$proj/docker-compose.yml" ]; then
-    ( cd "$proj" && docker compose down -v >/dev/null 2>&1 ) || true
-  fi
+  # A django project's docker-compose.yml (db/redis) only ever runs *inside* the devcontainer
+  # under sysbox/privileged, so it goes away with the container itself. Nothing to bring down
+  # on the host; the container is removed by id from the up log below.
   # build-based projects: remove the single container by id from the up log
   local cid
   cid="$(grep -o '"containerId":"[0-9a-f]*"' "$uplog" 2>/dev/null | head -1 | cut -d'"' -f4)"

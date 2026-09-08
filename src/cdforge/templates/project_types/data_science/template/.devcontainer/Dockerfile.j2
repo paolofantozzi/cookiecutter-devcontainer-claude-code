@@ -18,7 +18,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 # The egress firewall lives in the image, root-owned, rather than being run from the
 # workspace: nothing inside the container can rewrite the rules it applies. postStartCommand
 # runs it on every container start.
-COPY {% if use_compose %}.devcontainer/{% endif %}init-firewall.sh /usr/local/bin/cdforge-firewall
+COPY init-firewall.sh /usr/local/bin/cdforge-firewall
 RUN chmod 0755 /usr/local/bin/cdforge-firewall
 
 {% endif %}

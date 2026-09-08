@@ -113,7 +113,7 @@ def test_adopt_on_a_freshly_scaffolded_angular_project_finds_nothing_to_change(
     assert 'conflict' not in result.output
 
 
-def test_adopt_on_a_freshly_scaffolded_compose_project_finds_nothing_to_change(
+def test_adopt_on_a_freshly_scaffolded_django_project_finds_nothing_to_change(
     tmp_path: Path,
 ) -> None:
     output_dir = tmp_path / 'notes-api'
@@ -125,5 +125,6 @@ def test_adopt_on_a_freshly_scaffolded_compose_project_finds_nothing_to_change(
 
     assert result.exit_code == 0, result.output
     assert 'already aligned' in result.output
-    # The generated root docker-compose.yml is recognised as ours, not shadowed by an override.
+    assert 'conflict' not in result.output
+    # The generated docker-compose.yml is create-only, so a re-adopt leaves it untouched.
     assert 'docker-compose.cdforge.yml' not in result.output

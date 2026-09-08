@@ -15,9 +15,9 @@ installed on your host at all.
   Code config directory — no host block devices, no host Docker socket, no host filesystem.
   `.devcontainer/` is mounted **read-only**, so the container that defines the sandbox
   cannot be rewritten from inside it.
-- Projects that need backing services (django + Postgres/Redis) get them as **sibling
-  containers** via the Dev Containers Docker Compose workflow, reachable by hostname over a
-  private network — no in-container Docker daemon and no privilege required.
+- Projects that need backing services (django + Postgres/Redis) ship a `docker-compose.yml`
+  for those services that you run **inside** the devcontainer with its own Docker daemon;
+  such a project therefore requires `docker_mode` `sysbox` or `privileged`.
 - In-container Docker for Claude Code (build/run/Testcontainers) is **opt-in and off by
   default**, with two modes: **Sysbox** (`--runtime=sysbox-runc`) gives a full in-container
   Docker daemon that stays unprivileged with no host access (requires Sysbox on a Linux
@@ -50,7 +50,7 @@ installed on your host at all.
 | Type | What it scaffolds |
 | --- | --- |
 | `python_uv_tool` | A `uv`-managed Python CLI (Typer), ruff-formatted, pytest tests. |
-| `django_drf` | A Django REST Framework API: pytest-django, optional Postgres/Redis/Celery as unprivileged sibling containers via the Dev Containers Docker Compose workflow, JWT or session auth, optional drf-spectacular docs. |
+| `django_drf` | A Django REST Framework API: pytest-django, optional Postgres/Redis/Celery via a `docker-compose.yml` you run inside the devcontainer (so it needs `docker_mode` sysbox/privileged), JWT or session auth, optional drf-spectacular docs. |
 | `data_science` | Jupyter notebooks plus a reusable `src/` package for data analysis and model training: numpy/pandas/scikit-learn, optionally PyTorch (CPU or CUDA wheels) and the Hugging Face transformers stack, MLflow or W&B tracking, notebooks linted by ruff and stripped of outputs before every commit. |
 | `generic` | A near-empty workspace: Python, `uv`, `ruff` and `pytest` available inside the sandboxed devcontainer, a `docs/` folder, and nothing to build (`[tool.uv] package = false`). For drafting documents, keeping notes, or scratch code that does not fit the other types. |
 | `angular` | An Angular single-page app: standalone components, the Angular CLI, ESLint + Prettier, Karma/Jasmine unit tests against headless Chromium baked into the image. Node/npm instead of Python; `npm install` on create, `npm run lint` + `npm test` on every commit. |
@@ -129,10 +129,12 @@ every mode. What it does with each file:
 | `README.md`, `CLAUDE.md`, `CHANGELOG.md`, `LICENSE`, `docker-compose.yml`, `.env.example` | Created only if missing; otherwise reported as a conflict and left alone (`--write-suggestions` drops the generated version next to it as `<name>.cdforge-new`). |
 | Everything else (`src/`, `apps/`, `pyproject.toml`, tests, ...) | Never written. |
 
-For a compose-based project (Django with Postgres/Redis) that already has its own
-`docker-compose.yml`, the devcontainer's services are written to
-`.devcontainer/docker-compose.cdforge.yml` and `devcontainer.json` loads both files, so your
-services stay untouched and the devcontainer's `app` service is merged on top.
+The devcontainer is always a single plain container — never a Docker Compose project. A
+Django project with Postgres/Redis ships a `docker-compose.yml` for those services alone (no
+`app` service); you run it **inside** the devcontainer with its own Docker daemon
+(`docker compose up -d`), which is why such a project requires `docker_mode` `sysbox` or
+`privileged`. `adopt` never writes a compose file into an existing project; if one is already
+there it is left untouched and reported as a conflict.
 
 The answers are recorded in `.cdforge.json`, so a later `cdforge adopt` reuses them without
 asking (`--reconfigure` to re-ask everything). An interactive run still offers to change the

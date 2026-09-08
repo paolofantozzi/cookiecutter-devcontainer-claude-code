@@ -45,30 +45,15 @@ def build_context(
     context.setdefault('git_remote_url', '')
     context.setdefault('gpu_enabled', False)
 
-    # Projects that need backing services (Postgres/Redis) get them as *sibling*
-    # containers via the Dev Containers Docker Compose workflow: the devcontainer itself
-    # stays an ordinary, unprivileged container that can only reach the workspace, and the
-    # services live on the compose network (reachable by hostname, never on the host FS).
-    context['use_compose'] = bool(
+    # The devcontainer is always a single, plain `build.dockerfile` container - it is only
+    # the dev/Claude Code environment and never bundles backing services. A `django_drf`
+    # project that needs Postgres/Redis ships a plain `docker-compose.yml` (db/redis only,
+    # no `app` service) that the developer brings up from *inside* the container with the
+    # in-container Docker daemon; `docker_mode` must therefore be 'sysbox' or 'privileged'
+    # for such a project (enforced in `answers.validate_answer_compatibility`).
+    context['needs_service_stack'] = bool(
         project_type.id == 'django_drf'
         and (context.get('database') == 'postgres' or context.get('include_celery'))
-    )
-
-    # Where the generated compose file lives:
-    #   'root'         - `docker-compose.yml` at the project root (a fresh project).
-    #   'devcontainer' - `.devcontainer/docker-compose.cdforge.yml`, loaded as an *override*
-    #                    on top of a compose file the adopted project already had, so its
-    #                    own services survive and the devcontainer's `app` service is added.
-    #                    Compose resolves relative paths in every file against the first
-    #                    file's directory, so the override's paths still mean the root.
-    compose_file_location = context.get('compose_file_location')
-    if compose_file_location not in ('root', 'devcontainer'):
-        compose_file_location = 'root'
-    context['compose_file_location'] = compose_file_location
-    context['compose_files'] = (
-        ['../docker-compose.yml']
-        if compose_file_location == 'root'
-        else ['../docker-compose.yml', 'docker-compose.cdforge.yml']
     )
 
     # How (if at all) Claude Code can run its own containers inside the devcontainer:
@@ -109,16 +94,15 @@ def build_context(
     context['network_firewall'] = network_firewall
     context['firewall_enabled'] = network_firewall in ('allowlist', 'strict')
 
-    # runArgs for the plain (non-compose) layout. In the compose layout the runtime/privilege
-    # is expressed on the `app` service instead.
+    # runArgs for the plain `build.dockerfile` layout (the only layout).
     # gpu_enabled + docker_mode='sysbox' is rejected in validate_answer_compatibility (Sysbox
     # has no NVIDIA-runtime support), so these two branches never both fire.
     run_args: list[str] = []
-    if context['gpu_enabled'] and not context['use_compose']:
+    if context['gpu_enabled']:
         run_args.append('--gpus=all')
-    if docker_mode == 'sysbox' and not context['use_compose']:
+    if docker_mode == 'sysbox':
         run_args.append('--runtime=sysbox-runc')
-    if context['firewall_enabled'] and not context['use_compose']:
+    if context['firewall_enabled']:
         # iptables inside the container needs NET_ADMIN; NET_RAW is already in Docker's
         # default set but is named here so the requirement is explicit.
         run_args += ['--cap-add=NET_ADMIN', '--cap-add=NET_RAW']

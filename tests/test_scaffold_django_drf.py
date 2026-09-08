@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 
+import pytest
+
+from cdforge.answers import AnswersError
 from cdforge.answers import load_answers_file
 from cdforge.scaffold import scaffold_project
 
@@ -45,73 +48,105 @@ def test_expected_files_are_created(tmp_path: Path) -> None:
         assert (project_dir / relative).exists(), f'missing {relative}'
 
 
-def test_devcontainer_uses_unprivileged_compose_workflow(tmp_path: Path) -> None:
+def test_devcontainer_is_a_single_plain_container(tmp_path: Path) -> None:
     project_dir = _scaffold(tmp_path)
 
     config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
 
-    # Backing services come from sibling containers via the compose workflow, so the
-    # devcontainer stays unprivileged: no docker-in-docker, no host runArgs.
-    assert config['dockerComposeFile'] == '../docker-compose.yml'
-    assert config['service'] == 'app'
-    assert config['workspaceFolder'] == '/workspaces/notes-api'
-    assert 'ghcr.io/devcontainers/features/docker-in-docker:2' not in config['features']
+    # The devcontainer is only the dev/Claude environment: one plain build.dockerfile
+    # container, never a compose service. Backing services are the developer's to run inside.
+    assert config['build'] == {'dockerfile': 'Dockerfile'}
+    assert 'dockerComposeFile' not in config
+    assert 'service' not in config
     assert 'ghcr.io/anthropics/devcontainer-features/claude-code:1.0' in config['features']
-    assert 'runArgs' not in config
 
 
-def test_docker_compose_defines_app_and_sibling_services(tmp_path: Path) -> None:
+def test_sysbox_project_gets_the_in_container_daemon_not_dind_feature(tmp_path: Path) -> None:
+    project_dir = _scaffold(tmp_path)
+
+    config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
+
+    # Postgres/Redis run from inside via `docker compose up -d`; the fixture uses sysbox for
+    # that daemon, so it is a runArg + docker-start.sh, never the privileged dind feature.
+    assert config['runArgs'] == ['--runtime=sysbox-runc']
+    assert 'ghcr.io/devcontainers/features/docker-in-docker:2' not in config['features']
+    assert 'bash .devcontainer/docker-start.sh' in config['postStartCommand']
+
+
+def test_docker_compose_defines_only_backing_services(tmp_path: Path) -> None:
     project_dir = _scaffold(tmp_path)
 
     compose = (project_dir / 'docker-compose.yml').read_text()
 
-    # The devcontainer itself is the unprivileged `app` service; db/redis are siblings.
-    assert 'app:' in compose
+    # docker-compose.yml is the app's own backing services, run from inside the container.
+    # There is no `app` service: the devcontainer is not part of this file.
+    assert 'app:' not in compose
+    assert 'db:' in compose
     assert 'postgres:16' in compose
     assert 'redis:7' in compose
     assert 'privileged: true' not in compose
-    # GPU (from the fixture) is expressed on the app service, not as a host runArg.
-    assert 'nvidia' in compose
+    assert 'sysbox-runc' not in compose
 
 
-def test_sysbox_mode_sets_runtime_on_app_service(tmp_path: Path) -> None:
+def test_postgres_or_celery_requires_in_container_docker(tmp_path: Path) -> None:
     answers = load_answers_file(FIXTURE)
-    answers['docker_mode'] = 'sysbox'
-    answers['gpu_enabled'] = False  # sysbox has no NVIDIA-runtime support; the two conflict
-    output_dir = tmp_path / 'notes-api-sysbox'
+    answers['docker_mode'] = 'none'
+
+    with pytest.raises(AnswersError, match='in-container Docker'):
+        scaffold_project(answers, tmp_path / 'notes-api-none')
+
+
+def test_privileged_mode_enables_the_dind_feature(tmp_path: Path) -> None:
+    answers = load_answers_file(FIXTURE)
+    answers['docker_mode'] = 'privileged'
+    output_dir = tmp_path / 'notes-api-privileged'
 
     project_dir = scaffold_project(answers, output_dir)
-    compose = (project_dir / 'docker-compose.yml').read_text()
-
-    assert 'runtime: sysbox-runc' in compose
-    assert 'privileged: true' not in compose
     config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
-    assert 'ghcr.io/devcontainers/features/docker-in-docker:2' not in config['features']
+
+    assert 'ghcr.io/devcontainers/features/docker-in-docker:2' in config['features']
+    assert 'runArgs' not in config or '--runtime=sysbox-runc' not in config.get('runArgs', [])
 
 
-def test_settings_use_sibling_service_hostnames(tmp_path: Path) -> None:
+def test_gpu_passes_through_as_a_host_runarg(tmp_path: Path) -> None:
+    answers = load_answers_file(FIXTURE)
+    answers['gpu_enabled'] = True
+    answers['docker_mode'] = 'privileged'  # sysbox has no NVIDIA-runtime support
+    output_dir = tmp_path / 'notes-api-gpu'
+
+    project_dir = scaffold_project(answers, output_dir)
+    config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
+
+    assert '--gpus=all' in config['runArgs']
+    assert config['hostRequirements'] == {'gpu': 'optional'}
+    # The compose file never carries the GPU reservation any more.
+    assert 'nvidia' not in (project_dir / 'docker-compose.yml').read_text()
+
+
+def test_settings_point_at_localhost_services(tmp_path: Path) -> None:
     project_dir = _scaffold(tmp_path)
 
     env_example = (project_dir / '.env.example').read_text()
     settings = (project_dir / 'notes_api_config' / 'settings.py').read_text()
 
-    assert '@db:5432' in env_example
-    assert 'redis://redis:6379' in env_example
-    assert 'redis://redis:6379' in settings
+    # The devcontainer is not on the services' network; it reaches them via published ports.
+    assert '@localhost:5432' in env_example
+    assert 'redis://localhost:6379' in env_example
+    assert 'redis://localhost:6379' in settings
+    assert '@db:5432' not in env_example
 
 
 def test_docker_compose_is_omitted_without_postgres_or_celery(tmp_path: Path) -> None:
     answers = load_answers_file(FIXTURE)
     answers['database'] = 'sqlite'
     answers['include_celery'] = False
+    answers['docker_mode'] = 'none'  # no services, so no in-container Docker is required
     output_dir = tmp_path / 'notes-api-sqlite'
 
     project_dir = scaffold_project(answers, output_dir)
 
     assert not (project_dir / 'docker-compose.yml').exists()
     assert not (project_dir / 'notes_api_config' / 'celery.py').exists()
-    # With no services, there is no compose project: the devcontainer builds directly
-    # from the Dockerfile and still stays unprivileged.
     config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
     assert config['build'] == {'dockerfile': 'Dockerfile'}
     assert 'dockerComposeFile' not in config
@@ -129,30 +164,27 @@ def test_settings_reference_installed_apps_and_auth(tmp_path: Path) -> None:
 
 
 def test_dev_services_are_published_on_the_loopback_only(tmp_path: Path) -> None:
-    # The devcontainer reaches these by hostname on the compose network; publishing them on
-    # every host interface would expose a fixed-password dev database to the whole LAN.
+    # Django reaches these at localhost via the published port; binding every host interface
+    # would expose a fixed-password dev database to the whole LAN.
     compose = (_scaffold(tmp_path) / 'docker-compose.yml').read_text()
 
     assert '"127.0.0.1:5432:5432"' in compose
     assert '"127.0.0.1:6379:6379"' in compose
 
 
-def test_firewall_adds_capabilities_to_the_app_service(tmp_path: Path) -> None:
+def test_firewall_adds_capabilities_as_host_runargs(tmp_path: Path) -> None:
     answers = load_answers_file(FIXTURE)
     answers['network_firewall'] = 'allowlist'
 
     project_dir = scaffold_project(answers, tmp_path / 'notes-api-firewall')
-    compose = (project_dir / 'docker-compose.yml').read_text()
     config = json.loads((project_dir / '.devcontainer' / 'devcontainer.json').read_text())
     dockerfile = (project_dir / '.devcontainer' / 'Dockerfile').read_text()
 
-    # In the compose layout the capability goes on the service, never as a host runArg.
-    assert 'cap_add:' in compose
-    assert 'NET_ADMIN' in compose
-    assert 'runArgs' not in config
-    assert config['postStartCommand'] == 'sudo /usr/local/bin/cdforge-firewall'
-    # The compose build context is the project root, so the COPY path is prefixed.
-    assert 'COPY .devcontainer/init-firewall.sh /usr/local/bin/cdforge-firewall' in dockerfile
-    # The compose network's own subnet stays reachable, or db/redis would be cut off.
+    # The plain layout expresses the firewall capability as host runArgs.
+    assert '--cap-add=NET_ADMIN' in config['runArgs']
+    assert '--cap-add=NET_RAW' in config['runArgs']
+    assert 'sudo /usr/local/bin/cdforge-firewall' in config['postStartCommand']
+    # The plain build context is .devcontainer/, so the COPY path is unprefixed.
+    assert 'COPY init-firewall.sh /usr/local/bin/cdforge-firewall' in dockerfile
     firewall = (project_dir / '.devcontainer' / 'init-firewall.sh').read_text()
     assert 'ip -o -f inet addr show scope global' in firewall

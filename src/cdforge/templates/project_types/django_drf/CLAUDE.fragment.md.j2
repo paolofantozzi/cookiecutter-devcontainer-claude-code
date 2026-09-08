@@ -4,13 +4,15 @@
 - `apps/{{ initial_app_name }}/` — the first Django app: models, serializers, views, urls,
   tests. New apps follow the same `apps/<name>/` layout and are added to `INSTALLED_APPS`
   as `apps.<name>`.
-- Database: **{{ database }}**{% if database == 'postgres' %}, running as a sibling container
-  (`db`) started automatically with the devcontainer via `docker-compose.yml`. It is reachable
-  at hostname `db:5432`; `DATABASE_URL` in `.env` (copy it from `.env.example`) already points
-  Django at it{% endif %}.
+- Database: **{{ database }}**{% if database == 'postgres' %}. Postgres runs from
+  `docker-compose.yml`, which you bring up yourself from inside the devcontainer with its
+  in-container Docker daemon (`docker compose up -d`). It publishes on `127.0.0.1:5432`;
+  `DATABASE_URL` in `.env` (copy it from `.env.example`) already points Django at
+  `localhost:5432`{% endif %}.
 {% if include_celery %}
-- Background tasks run through Celery, with Redis as broker/result backend, running as a
-  sibling container (`redis`, reachable at `redis:6379`) started with the devcontainer.
+- Background tasks run through Celery with Redis as broker/result backend. Redis is the
+  `redis` service in `docker-compose.yml` (same `docker compose up -d`), published on
+  `127.0.0.1:6379`.
 {% endif %}
 
 ## Running things
@@ -19,6 +21,7 @@
 - `uv run python manage.py makemigrations` / `migrate` — schema changes.
 - `uv run pytest` — test suite (uses SQLite automatically unless `DATABASE_URL` is set, so it
   runs without any external service).
-{% if use_compose %}
-- The `{% if database == 'postgres' %}db{% endif %}{% if database == 'postgres' and include_celery %}/{% endif %}{% if include_celery %}redis{% endif %}` service{% if database == 'postgres' and include_celery %}s{% endif %} start and stop together with the devcontainer — you do not run `docker` yourself. They live on the compose network and are not on the host filesystem.
+{% if needs_service_stack %}
+- `docker compose up -d` / `docker compose down` — start/stop the local
+  {% if database == 'postgres' %}Postgres{% endif %}{% if database == 'postgres' and include_celery %} and {% endif %}{% if include_celery %}Redis{% endif %} container{% if database == 'postgres' and include_celery %}s{% endif %}. This uses the devcontainer's own in-container Docker daemon; the containers are not on the host and are reached at `localhost`.
 {% endif %}
