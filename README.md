@@ -145,8 +145,9 @@ asking (`--reconfigure` to re-ask everything). An interactive run still offers t
 **project type** — keeping it is a no-op; picking another re-asks only that type's own
 questions. That also makes `adopt` the **upgrade path for generated projects**: after
 upgrading cdforge, re-run `cdforge adopt` in a project to pull in newer devcontainer fixes.
-Adoption refuses to run over uncommitted changes (`--force` to override), so the rewrite is
-always reviewable with `git diff`.
+Adoption runs even with uncommitted changes in the worktree, but warns first (`--force`
+silences the warning) — commit or stash beforehand and the rewrite is fully reviewable with
+`git diff`.
 
 ## Developing cdforge itself
 

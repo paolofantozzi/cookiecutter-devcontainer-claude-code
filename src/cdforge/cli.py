@@ -231,7 +231,7 @@ def adopt(
     ] = False,
     force: Annotated[
         bool,
-        typer.Option('--force', help='Proceed even with uncommitted changes in the project.'),
+        typer.Option('--force', help='Skip the warning about uncommitted changes in the project.'),
     ] = False,
     write_suggestions: Annotated[
         bool,
@@ -275,13 +275,14 @@ def adopt(
     dirty = dirty_tracked_files(project_dir)
     if dirty and not force and not dry_run:
         typer.secho(
-            'This project has uncommitted changes; commit or stash them first so the '
-            'rewritten files can be reviewed with `git diff` (or pass --force):',
-            fg=typer.colors.RED,
+            'This project has uncommitted changes. Adoption only rewrites the managed '
+            'files (.devcontainer/, .githooks/, .claude/); after it runs, `git diff` will '
+            'mix its rewrite with your own edits. Commit or stash first for a clean review '
+            '(or pass --force to silence this warning):',
+            fg=typer.colors.YELLOW,
         )
         for path in dirty[:10]:
             typer.echo(f'  {path}')
-        raise typer.Exit(code=1)
 
     try:
         plan = plan_alignment(answers, project_dir)

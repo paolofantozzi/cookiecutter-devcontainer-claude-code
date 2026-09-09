@@ -87,8 +87,9 @@ database is chosen but `pyproject.toml` declares no driver.
 Consequences worth preserving: adoption is idempotent (a freshly scaffolded project reports
 "already aligned" — `tests/test_cli.py` asserts this round trip), it never edits
 `pyproject.toml` (it only *warns* when ruff/pytest are missing, since the generated
-pre-commit hook needs them), and it refuses to run over uncommitted tracked changes unless
-`--force`, so `git diff` is always a complete review of what it did. When adding a new file
+pre-commit hook needs them), and it *warns* (but proceeds) when the worktree has uncommitted
+tracked changes — `--force` silences that warning — so committing first still gives a
+`git diff` that is a complete review of what it did. When adding a new file
 to `templates/common/`, decide which of the four categories it falls into — the default for
 an unlisted path is "never written into an existing project".
 

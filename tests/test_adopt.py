@@ -230,16 +230,23 @@ def test_cli_adopt_non_interactive_type_flag_overrides_the_recorded_manifest(
     assert read_manifest_answers(project_dir)['project_type'] == 'generic'
 
 
-def test_cli_adopt_refuses_a_dirty_worktree_unless_forced(tmp_path: Path) -> None:
+def test_cli_adopt_warns_but_proceeds_on_a_dirty_worktree(tmp_path: Path) -> None:
     project_dir = make_legacy_project(tmp_path, git=True)
     (project_dir / 'README.md').write_text('# changed\n')
 
     result = runner.invoke(app, ['adopt', str(project_dir), '--non-interactive'])
-    assert result.exit_code == 1
-    assert not (project_dir / '.devcontainer').exists()
+    assert result.exit_code == 0, result.output
+    assert 'uncommitted changes' in result.output
+    assert (project_dir / '.devcontainer' / 'devcontainer.json').exists()
+
+
+def test_cli_adopt_force_silences_the_dirty_worktree_warning(tmp_path: Path) -> None:
+    project_dir = make_legacy_project(tmp_path, git=True)
+    (project_dir / 'README.md').write_text('# changed\n')
 
     forced = runner.invoke(app, ['adopt', str(project_dir), '--non-interactive', '--force'])
     assert forced.exit_code == 0, forced.output
+    assert 'uncommitted changes' not in forced.output
     assert (project_dir / '.devcontainer' / 'devcontainer.json').exists()
 
 

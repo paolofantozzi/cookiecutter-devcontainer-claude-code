@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.23] - 2026-09-09
+
+### Changed
+
+- **`cdforge adopt` no longer refuses to run over a dirty worktree.** Uncommitted tracked
+  changes now produce a warning (listing the files) and adoption proceeds anyway, since it
+  only rewrites the managed sandbox files. `--force` still exists, now to silence that
+  warning; committing or stashing first is still the way to get a `git diff` that is a
+  clean review of the rewrite.
+
 ## [0.1.22] - 2026-09-09
 
 ### Added
