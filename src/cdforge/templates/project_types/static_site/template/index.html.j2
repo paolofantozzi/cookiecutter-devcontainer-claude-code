@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ project_name }}</title>
+    <meta name="description" content="{{ project_name }} — a static website." />
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="main.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="site-title" href="./index.html">{{ project_name }}</a>
+      <nav aria-label="Primary">
+        <a href="./index.html" aria-current="page">Home</a>
+      </nav>
+    </header>
+
+    <main>
+      <h1>{{ project_name }}</h1>
+      <p class="lead">
+        This is a plain static website — hand-written HTML, CSS and JavaScript with no
+        build step. Edit the files in the repository root and reload.
+      </p>
+
+      <section aria-labelledby="next-steps">
+        <h2 id="next-steps">Next steps</h2>
+        <ul>
+          <li>Edit <code>index.html</code> and <code>styles.css</code>.</li>
+          <li>Add more pages as top-level <code>*.html</code> files.</li>
+          <li>Put images and fonts in <code>assets/</code>.</li>
+          <li>
+            Preview with <code>python3 -m http.server 8000</code> from the repository
+            root.
+          </li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>&copy; <span data-year>{{ generation_year }}</span> {{ author_name }}</p>
+    </footer>
+  </body>
+</html>

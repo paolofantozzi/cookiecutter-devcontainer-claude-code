@@ -1,0 +1,30 @@
+## Usage
+
+This is a plain static website: hand-written HTML, CSS and JavaScript with **no build
+step, framework or package manager**. The repository root is the deploy root — a static
+host (GitHub Pages, Netlify, S3, nginx, ...) serves this folder exactly as it is.
+
+Preview it from inside the devcontainer:
+
+```console
+$ python3 -m http.server 8000    # from the repository root
+```
+
+Then open http://localhost:8000 (port 8000 is forwarded from the devcontainer).
+
+## Structure
+
+| Path | Purpose |
+| --- | --- |
+| `index.html` | Home page / entry point |
+| `404.html` | Not-found page most static hosts serve automatically |
+| `styles.css` | The single stylesheet |
+| `main.js` | Optional progressive-enhancement JavaScript (`defer`) |
+| `assets/` | Images, fonts, icons, `favicon.svg` |
+
+Add a page by creating another top-level `*.html` file that links `styles.css`.
+
+## Deploying
+
+Publish the repository root with any static host. There is nothing to compile: point the
+host at this folder (or push the branch, for GitHub Pages) and it is live.

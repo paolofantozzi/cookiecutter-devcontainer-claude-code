@@ -1,0 +1,8 @@
+
+# A static site with no build step: the only automated check is that the entry point
+# exists and is not empty. Preview the pages you changed in a browser
+# (`python3 -m http.server 8000`) before committing.
+if [ ! -s index.html ]; then
+  echo "pre-commit: index.html is missing or empty" >&2
+  exit 1
+fi

@@ -1,0 +1,31 @@
+---
+name: static-site-conventions
+description: Coding conventions for {{ project_name }} - a hand-written static site with no build step, framework or package manager.
+---
+
+This is a plain static website. The repository root is the deploy root: a static host
+serves these files exactly as they are. Follow these conventions for every change:
+
+- **No toolchain.** Do not add a build step, bundler, CSS or JS framework, `package.json`,
+  or any dependency. If a change seems to need one, it does not belong in this project.
+- **Preview**, do not build: `python3 -m http.server 8000` from the repository root, then
+  open http://localhost:8000 (port forwarded from the devcontainer).
+- **Pages** are top-level `*.html` files. Each one:
+  - has a consistent `<head>`: `charset`, `viewport`, a `<title>`, `styles.css`, and the
+    `assets/favicon.svg` icon link;
+  - links `main.js` with `defer` only if it needs it, and still works without it;
+  - has exactly one `<h1>` and uses landmark elements (`<header>`, `<nav>`, `<main>`,
+    `<footer>`).
+- **Paths** to assets and other pages are relative (`assets/logo.svg`, `./about.html`) so
+  the site works from a domain root or a sub-path alike. (`404.html` is the exception: it
+  uses root-absolute paths because a host may serve it for any URL.)
+- **CSS** lives entirely in `styles.css`. Use the CSS custom properties already defined for
+  colour and spacing; prefer modern CSS (flexbox, grid, `clamp()`) over new files or tools.
+- **JavaScript** in `main.js` is progressive enhancement only — never required for the page
+  to render or navigate.
+- **Accessibility**: `alt` text on every image, labelled controls, sufficient colour
+  contrast, keyboard-reachable interactive elements.
+- Two-space indentation in HTML, CSS and JS; single quotes in JavaScript.
+- `.githooks/pre-commit` only checks that `index.html` exists. There is no test suite — so
+  open every page you changed in the browser before committing, and record the change in
+  `CHANGELOG.md`.

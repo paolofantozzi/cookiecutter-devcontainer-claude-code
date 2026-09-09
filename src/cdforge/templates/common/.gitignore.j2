@@ -11,6 +11,8 @@ dist/
 coverage/
 *.log
 .npm/
+{% elif stack == 'static' %}
+# Static site — nothing to build, bundle or install; the repo root is the deploy root.
 {% else %}
 # Python
 __pycache__/

@@ -56,6 +56,7 @@ installed on your host at all.
 | `data_science` | Jupyter notebooks plus a reusable `src/` package for data analysis and model training: numpy/pandas/scikit-learn, optionally PyTorch (CPU or CUDA wheels) and the Hugging Face transformers stack, MLflow or W&B tracking, notebooks linted by ruff and stripped of outputs before every commit. |
 | `generic` | A near-empty workspace: Python, `uv`, `ruff` and `pytest` available inside the sandboxed devcontainer, a `docs/` folder, and nothing to build (`[tool.uv] package = false`). For drafting documents, keeping notes, or scratch code that does not fit the other types. |
 | `angular` | An Angular single-page app: standalone components, the Angular CLI, ESLint + Prettier, Karma/Jasmine unit tests against headless Chromium baked into the image. Node/npm instead of Python; `npm install` on create, `npm run lint` + `npm test` on every commit. |
+| `static_site` | A plain static website: hand-written HTML, CSS and JavaScript with no build step, framework or package manager. The repository root is the deploy root and holds nothing but the site; previewed with `python3 -m http.server`. No toolchain is installed, and the pre-commit hook only checks that `index.html` exists. |
 
 Run `cdforge list-types` to see this list from the CLI, and `cdforge list-skills` for the
 optional Claude Code skills you can add on top of the mandatory ones.

@@ -1,0 +1,12 @@
+{
+  "project_name": "Marketing Site",
+  "git_remote_url": "",
+  "project_type": "static_site",
+  "gpu_enabled": false,
+  "docker_mode": "none",
+  "network_firewall": "none",
+  "optional_skills": [],
+  "license_id": "MIT",
+  "author_name": "Test Author",
+  "author_email": "author@example.com"
+}

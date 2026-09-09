@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.22] - 2026-09-09
+
+### Added
+
+- **A `static_site` project type**: a plain static website — hand-written HTML, CSS and
+  JavaScript with no build step, framework or package manager. The scaffold is just
+  `index.html`, `404.html`, `styles.css`, `main.js` and `assets/favicon.svg` at the
+  repository root (which *is* the deploy root), plus a `static-site-conventions` skill.
+  Previewed with `python3 -m http.server 8000` (port 8000 forwarded); no toolchain is
+  installed, and `.githooks/pre-commit` only checks that `index.html` exists.
+- **A third `stack` value, `'static'`**, that the shared `templates/common/` files branch
+  on alongside `'python'` and `'node'`: `post-create.sh` (no install step), `.githooks/`
+  `pre-commit` (no `ruff`/`npm`), `.gitignore` (no language block), `CLAUDE.md` (language,
+  version-bump and pre-commit lines) and the `project-governance` skill (version tracked in
+  `CHANGELOG.md` alone; a "Checks" section instead of "Tests").
+- `detect.py` recognises an existing static site (no `pyproject.toml` / `package.json`, an
+  `index.html` at the root) and reads its `license_id` from the `LICENSE` file;
+  `adopt._tooling_notes` emits nothing for it.
+
 ## [0.1.21] - 2026-09-08
 
 ### Added

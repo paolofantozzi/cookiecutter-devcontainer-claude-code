@@ -1,0 +1,39 @@
+## Project layout
+
+The repository root **is** the site's web root — whatever static host serves this folder
+serves these files unchanged, so nothing that is not part of the site belongs at the top
+level.
+
+- `index.html` — the home page and the entry point the pre-commit hook checks for.
+- `404.html` — served by most static hosts for unknown paths.
+- `styles.css` — the single stylesheet, linked from every page.
+- `main.js` — progressive-enhancement JavaScript, loaded with `defer`. The site must still
+  render without it.
+- `assets/` — images, fonts, icons and anything else the pages reference. `favicon.svg`
+  lives here.
+
+The only other top-level entries are the sandbox machinery cdforge manages
+(`.devcontainer/`, `.githooks/`, `.claude/`) and the project documents (`README.md`,
+`CLAUDE.md`, `CHANGELOG.md`, `LICENSE`).
+
+## Running things
+
+- `python3 -m http.server 8000` — from the repository root, serve the site for preview on
+  http://localhost:8000 (port 8000 is forwarded from the devcontainer). Nothing to install
+  or build first.
+- There is no test suite. `.githooks/pre-commit` only checks that `index.html` exists.
+
+## Conventions
+
+- Hand-write HTML, CSS and JavaScript. Do **not** introduce a build step, a bundler, a CSS
+  or JS framework, or a `package.json` — the point of this project is that the folder is
+  deployed exactly as it is.
+- Every new page is a top-level `*.html` file that links `styles.css` and, if it needs it,
+  `main.js`. Keep the `<head>` (charset, viewport, title, stylesheet, favicon) consistent
+  across pages.
+- Reference assets and other pages with **relative** paths (`assets/logo.svg`,
+  `./about.html`) so the site works whether it is served from a domain root or a sub-path.
+- Write semantic, valid HTML: one `<h1>` per page, landmark elements (`<header>`, `<nav>`,
+  `<main>`, `<footer>`), `alt` text on every image.
+- Keep `styles.css` organised with plain CSS custom properties for colours and spacing;
+  prefer modern CSS (flexbox, grid, `clamp()`) over adding tooling.

@@ -37,8 +37,8 @@ rationale documented in the templates themselves.
 - `src/cdforge/project_types/` — one module per project type (`base.py` defines the
   `ProjectType`/`Question` dataclasses and the registry). Adding a new project type means
   adding a module here plus a `templates/project_types/<id>/` tree. Besides the questions, a
-  `ProjectType` can declare `stack` (`'python'` default / `'node'` — the common templates
-  branch on it), `extra_apt_packages`, `extra_features`, `forward_ports`,
+  `ProjectType` can declare `stack` (`'python'` default / `'node'` / `'static'` — the common
+  templates branch on it), `extra_apt_packages`, `extra_features`, `forward_ports`,
   `vscode_extensions` (rendered into `devcontainer.json`) and `extra_allowed_domains` (added
   to the egress allowlist when the firewall is on); `context_builder.py` copies all of them
   into the context.
@@ -152,7 +152,7 @@ Picking `database` = `postgres`/`mariadb` still emits the root `docker-compose.y
 
 ## The `angular` project type
 
-The only **non-Python** type: Node + npm + the Angular CLI + ESLint/Prettier + Karma. It is
+The first **non-Python** type: Node + npm + the Angular CLI + ESLint/Prettier + Karma. It is
 what introduced the `stack` field on `ProjectType` (`'python'` by default, `'node'` here).
 `context_builder.py` copies `project_type.stack` into the context, and the shared
 `templates/common/` files branch on it rather than hard-coding `uv`/`ruff`:
@@ -185,6 +185,41 @@ Rules of its own worth keeping:
   Angular repo has no `pyproject.toml`. `app_name`/`node_version`/author/license are read
   from `package.json` + `angular.json`. `adopt._tooling_notes` warns about a missing
   `package.json`/ESLint instead of a missing `pyproject.toml`/ruff.
+
+## The `static_site` project type
+
+The minimal **no-toolchain** type: `stack='static'`, a plain devcontainer
+(`devcontainers/python:3.12`, only for its `python3`), and a repository that is nothing but
+a hand-written static site — HTML, CSS, JS at the root, with `assets/` for media. There is
+no `package.json`, no `pyproject.toml`, no build step and no dependency; **the repository
+root is the deploy root** (a static host serves it unchanged), which is the constraint the
+whole type is shaped around.
+
+`stack='static'` is the third value the common templates branch on (alongside `'python'`
+and `'node'`), so every common file that names a toolchain has a `static` arm:
+`post-create.sh` (no install step at all), `.githooks/pre-commit` (no `ruff`/`npm` — just
+`{% include %}` of the fragment), `.gitignore` (no language block), `CLAUDE.md` (the
+"belongs to the project" line, the "Language and style" section, the version-bump line, and
+the pre-commit line), and the `project-governance` skill (version lives in `CHANGELOG.md`
+alone; a "Checks" section instead of "Tests"). A new common template that mentions the
+toolchain must add a `static` arm too.
+
+Rules of its own worth keeping:
+
+- **No lint, no tests, on purpose.** `precommit.fragment.sh.j2` only asserts that
+  `index.html` exists and is non-empty — a zero-dependency check, since nothing is
+  installed. The generated `CLAUDE.md`/skill tell Claude to open changed pages in a browser
+  (`python3 -m http.server 8000`, port 8000 forwarded) rather than run a suite.
+- **The version lives only in `CHANGELOG.md`** — there is no manifest to bump.
+- `forward_ports=[8000]` is `http.server`'s default; the Dockerfile installs no language
+  runtime (`astral-sh/uv` COPY dropped) and relies on the base image's `python3`.
+- `detect.py` classifies an existing project as `static_site` when it has **no**
+  `pyproject.toml` and **no** `package.json` but does have `index.html` (or a root `*.html`),
+  checked right after the Angular signal. Only `license_id` is detected (from the `LICENSE`
+  file text); author falls back to the git identity via the question defaults. The shared
+  `database` question is skipped for it, like `angular`. `adopt._tooling_notes` returns
+  nothing (there is no toolchain to warn about), and the site files are *project-owned* — a
+  re-`adopt` rewrites only `.devcontainer/`, `.githooks/`, `.claude/`.
 
 ## Template tree layout
 
@@ -355,5 +390,6 @@ adoption still works, and keeps this repository's devcontainer current with the 
   `scripts/e2e.sh --list` to see variants,
   `scripts/e2e.sh --only py-default,dj-sqlite` for a subset. The `ds-*` variants also
   execute the first generated notebook and exercise the notebook-stripping pre-commit hook
-  inside the container. This has found real build bugs
-  (the broken yarn apt source; the `uv_build` module-name mismatch).
+  inside the container; the `ss-*` (static site) variants run the pre-commit hook and check
+  that `python3 -m http.server` serves `index.html` with no toolchain installed. This has
+  found real build bugs (the broken yarn apt source; the `uv_build` module-name mismatch).

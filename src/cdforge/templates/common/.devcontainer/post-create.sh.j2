@@ -28,7 +28,7 @@ fi
 
 {% if stack == 'node' %}
 npm install
-{% else %}
+{% elif stack == 'python' %}
 uv sync --all-extras
 {% endif %}
 

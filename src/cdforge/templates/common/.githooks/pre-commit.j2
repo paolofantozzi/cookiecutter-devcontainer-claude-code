@@ -4,6 +4,9 @@ set -euo pipefail
 {% if stack == 'node' %}
 echo "Running the linter and the test suite before allowing this commit..."
 {% include "precommit.fragment.sh.j2" %}
+{% elif stack == 'static' %}
+echo "Running pre-commit checks before allowing this commit..."
+{% include "precommit.fragment.sh.j2" %}
 {% else %}
 echo "Running ruff and the test suite before allowing this commit..."
 

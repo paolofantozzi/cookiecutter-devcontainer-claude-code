@@ -73,7 +73,7 @@ container:
 recorded in `.cdforge.json`, and a host-side `cdforge adopt` re-renders them from the
 template. Improvements to them therefore belong upstream in cdforge; a local edit here is
 lost on the next alignment run (and `.devcontainer/` is read-only from inside the container
-anyway). Everything else in this repository — source code, tests, {% if stack == 'node' %}`package.json`{% else %}`pyproject.toml`{% endif %}, this
+anyway). Everything else in this repository — {% if stack == 'static' %}the site's HTML, CSS and JavaScript{% elif stack == 'node' %}source code, tests, `package.json`{% else %}source code, tests, `pyproject.toml`{% endif %}, this
 file, `README.md`, `CHANGELOG.md` — belongs to the project and is never rewritten by
 `cdforge adopt`.
 
@@ -88,6 +88,15 @@ file, `README.md`, `CHANGELOG.md` — belongs to the project and is never rewrit
   - String literals use single quotes (Prettier `singleQuote`).
   - Components are standalone (no NgModules); prefer the Angular CLI (`npx ng generate`)
     to create components, services and routes so the conventions stay consistent.
+{% elif stack == 'static' %}
+- This is a plain static website: hand-written HTML, CSS and JavaScript served exactly as
+  they are on disk. There is **no build step, bundler, framework or package manager** — do
+  not add one. Reference every asset with a relative path so the site works from any
+  sub-path.
+- Preview it from the repository root with `python3 -m http.server 8000` and open the
+  forwarded port; there is nothing to install first.
+- Keep the markup valid and semantic and check the pages you touched in a browser before
+  committing.
 {% else %}
 - Dependencies and virtual environments are managed with `uv`; run project commands with
   `uv run ...` rather than invoking tools from a global install.
@@ -105,11 +114,20 @@ file, `README.md`, `CHANGELOG.md` — belongs to the project and is never rewrit
 {% if stack == 'node' %}
 - Bump `version` in `package.json` and add a `CHANGELOG.md` entry (Keep a Changelog format)
   for every notable change, in the same commit as the change.
+{% elif stack == 'static' %}
+- Record every notable change in `CHANGELOG.md` (Keep a Changelog format) under a new
+  version heading, in the same commit as the change. There is no package manifest, so the
+  changelog is the only place the version lives.
 {% else %}
 - Bump `[project].version` in `pyproject.toml` and add a `CHANGELOG.md` entry (Keep a
   Changelog format) for every notable change, in the same commit as the change.
 {% endif %}
 - Commit each feature or fix on its own with a Conventional Commit message. Never
   `git push` — it is blocked and commits are meant to stay local until a human pushes them.
+{% if stack == 'static' %}
+- `.githooks/pre-commit` runs a quick sanity check (the site has an entry point) before a
+  commit is accepted.
+{% else %}
 - `.githooks/pre-commit` runs the linter and the test suite automatically before a commit
   is accepted; keep the test suite up to date rather than bypassing a failing hook.
+{% endif %}

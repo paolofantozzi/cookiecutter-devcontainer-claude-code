@@ -66,10 +66,13 @@ VARIANTS=(
   "ds-firewall|data_science|network_firewall=allowlist"
   "ng-default|angular|"
   "ng-firewall|angular|network_firewall=allowlist"
+  "ss-default|static_site|"
+  "ss-firewall|static_site|network_firewall=allowlist"
   "py-adopt|python_uv_tool||adopt"
   "dj-adopt|django_drf|database=postgres include_celery=false docker_mode=sysbox|adopt"
   "ds-adopt|data_science||adopt"
   "ng-adopt|angular||adopt"
+  "ss-adopt|static_site||adopt"
 )
 
 if [ "${LIST_ONLY:-0}" = 1 ]; then
@@ -126,6 +129,8 @@ elif ptype == "data_science":
              compute_target="cpu", experiment_tracking="mlflow", license_id="MIT")
 elif ptype == "angular":
     a.update(app_name="app-ui", node_version="22", license_id="MIT")
+elif ptype == "static_site":
+    a.update(license_id="MIT")
 else:
     a.update(django_project_slug="app_config", initial_app_name="core",
              database="postgres", auth_method="simplejwt", include_celery=False,
@@ -161,6 +166,16 @@ if [ "$E2E_PTYPE" = "angular" ]; then
   if npm run lint >/tmp/e2e_lint.log 2>&1; then ok "npm run lint"; else bad "npm run lint" "lint errors"; tail -12 /tmp/e2e_lint.log; fi
   if npm test -- --watch=false >/tmp/e2e_test.log 2>&1; then ok "npm test (headless karma)"; else bad "npm test" "failing"; tail -15 /tmp/e2e_test.log; fi
   if npm run build >/tmp/e2e_build.log 2>&1; then ok "npm run build"; else bad "npm run build" "failing"; tail -12 /tmp/e2e_build.log; fi
+elif [ "$E2E_PTYPE" = "static_site" ]; then
+  git config --global --add safe.directory "$PWD" >/dev/null 2>&1 || true
+  if bash .githooks/pre-commit >/tmp/e2e_hook.log 2>&1; then ok "pre-commit (entry-point check)"; else bad "pre-commit" "failing"; tail -8 /tmp/e2e_hook.log; fi
+  python3 -m http.server 8000 >/dev/null 2>&1 & sp=$!; sleep 1
+  code=$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://localhost:8000/ 2>/dev/null || true)
+  [ "$code" = "200" ] && ok "http.server serves index.html" || bad "http.server" "GET / returned '$code'"
+  kill "$sp" 2>/dev/null || true
+  # No toolchain must have been installed for a pure static site.
+  [ -f pyproject.toml ] && bad "no python manifest" "pyproject.toml present" || ok "no python manifest"
+  [ -f package.json ] && bad "no node manifest" "package.json present" || ok "no node manifest"
 else
   uv run ruff check . >/dev/null 2>&1 && ok "ruff check" || bad "ruff check" "lint errors"
   if uv run pytest -q >/tmp/e2e_pytest.log 2>&1; then ok "pytest"; else bad "pytest" "failing"; tail -8 /tmp/e2e_pytest.log; fi

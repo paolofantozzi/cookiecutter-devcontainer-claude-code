@@ -15,7 +15,7 @@ Apply these rules on every change to this project, without being asked:
 
 ## Versioning
 
-- The project version lives in {% if stack == 'node' %}`package.json` under `"version"`{% else %}`pyproject.toml` under `[project].version`{% endif %}. Follow semantic
+- The project version lives in {% if stack == 'node' %}`package.json` under `"version"`{% elif stack == 'static' %}`CHANGELOG.md` alone (there is no package manifest){% else %}`pyproject.toml` under `[project].version`{% endif %}. Follow semantic
   versioning: patch for fixes, minor for backward-compatible features, major for breaking
   changes.
 - On every notable change, bump the version and add an entry to `CHANGELOG.md` following the
@@ -30,6 +30,16 @@ Apply these rules on every change to this project, without being asked:
 - **Never run `git push`.** It is blocked by this project's `.claude/settings.json` and
   should stay that way. Commits stay local until a human decides to push them.
 
+{% if stack == 'static' %}
+## Checks
+
+- `.githooks/pre-commit` runs a quick sanity check (the site has an entry point) before a
+  commit is accepted; a failing commit means the change is not ready, not something to
+  bypass with `--no-verify`.
+- This is a no-build static site, so there is no linter or test suite to keep up to date —
+  but open the pages you changed in a browser (`python3 -m http.server 8000`) before
+  committing.
+{% else %}
 ## Tests
 
 - `.githooks/pre-commit` runs the linter and the full test suite before a commit is
@@ -37,3 +47,4 @@ Apply these rules on every change to this project, without being asked:
   `--no-verify`.
 - Keep the test suite itself up to date: every new feature or bug fix needs a test that
   would fail without it.
+{% endif %}

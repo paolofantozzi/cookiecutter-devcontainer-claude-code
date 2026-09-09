@@ -4,6 +4,7 @@ from cdforge.project_types.data_science import DATA_SCIENCE
 from cdforge.project_types.django_drf import DJANGO_DRF
 from cdforge.project_types.generic import GENERIC
 from cdforge.project_types.python_uv_tool import PYTHON_UV_TOOL
+from cdforge.project_types.static_site import STATIC_SITE
 
 PROJECT_TYPES: dict[str, ProjectType] = {
     PYTHON_UV_TOOL.id: PYTHON_UV_TOOL,
@@ -11,6 +12,7 @@ PROJECT_TYPES: dict[str, ProjectType] = {
     DATA_SCIENCE.id: DATA_SCIENCE,
     GENERIC.id: GENERIC,
     ANGULAR.id: ANGULAR,
+    STATIC_SITE.id: STATIC_SITE,
 }
 
 

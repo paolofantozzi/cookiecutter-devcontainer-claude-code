@@ -86,6 +86,24 @@ def _detect_database(project_dir: Path, deps: str) -> str:
     return 'none'
 
 
+def _has_html_at_root(project_dir: Path) -> bool:
+    return (project_dir / 'index.html').exists() or any(project_dir.glob('*.html'))
+
+
+def _detect_static_site_license(project_dir: Path) -> str:
+    """A static site has no package manifest, so the LICENSE file text is the only signal."""
+    license_file = project_dir / 'LICENSE'
+    try:
+        text = license_file.read_text(encoding='utf-8')
+    except OSError:
+        return 'None'
+    if 'Apache License' in text:
+        return 'Apache-2.0'
+    if 'MIT License' in text or 'Permission is hereby granted, free of charge' in text:
+        return 'MIT'
+    return 'None'
+
+
 def _has_notebooks(project_dir: Path) -> bool:
     notebooks = project_dir / 'notebooks'
     if notebooks.is_dir() and any(notebooks.glob('*.ipynb')):
@@ -102,8 +120,12 @@ def _looks_like_bare_workspace(pyproject: dict[str, Any]) -> bool:
 
 
 def _detect_project_type(project_dir: Path, deps: str, pyproject: dict[str, Any]) -> str:
-    if _is_angular_project(_read_package_json(project_dir)):
+    package_json = _read_package_json(project_dir)
+    if _is_angular_project(package_json):
         return 'angular'
+    # A plain static site carries no Python or Node manifest at all — just HTML at the root.
+    if not pyproject and not package_json and _has_html_at_root(project_dir):
+        return 'static_site'
     if (project_dir / 'manage.py').exists() or 'django' in deps:
         return 'django_drf'
     # Notebooks, or a stack nobody installs for a CLI tool. Plain pandas/numpy is not
@@ -278,7 +300,7 @@ def detect_answers(project_dir: Path) -> dict[str, Any]:
     detected.update(_detect_authors(pyproject))
     detected.update(_detect_devcontainer_answers(project_dir))
 
-    if project_type != 'angular':
+    if project_type not in ('angular', 'static_site'):
         # Every Python type offers the database question now.
         detected['database'] = _detect_database(project_dir, deps)
 
@@ -312,6 +334,8 @@ def detect_answers(project_dir: Path) -> dict[str, Any]:
         python_version = _detect_python_version(pyproject)
         if python_version:
             detected['python_version'] = python_version
+    elif project_type == 'static_site':
+        detected['license_id'] = _detect_static_site_license(project_dir)
     elif project_type == 'angular':
         package_json = _read_package_json(project_dir)
         app_name = _detect_angular_app_name(project_dir) or str(package_json.get('name', ''))

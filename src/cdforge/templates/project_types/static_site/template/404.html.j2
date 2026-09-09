@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Page not found — {{ project_name }}</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="site-title" href="/index.html">{{ project_name }}</a>
+    </header>
+
+    <main>
+      <h1>Page not found</h1>
+      <p class="lead">
+        The page you asked for does not exist. It may have moved, or the link that brought
+        you here is out of date.
+      </p>
+      <p><a href="/index.html">Go back to the home page</a></p>
+    </main>
+
+    <footer class="site-footer">
+      <p>&copy; {{ generation_year }} {{ author_name }}.</p>
+    </footer>
+  </body>
+</html>

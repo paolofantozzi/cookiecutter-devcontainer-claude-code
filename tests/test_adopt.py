@@ -322,6 +322,21 @@ def test_detect_answers_recognises_a_notebook_project(tmp_path: Path) -> None:
     assert detected['experiment_tracking'] == 'wandb'
 
 
+def test_detect_answers_recognises_a_static_site(tmp_path: Path) -> None:
+    project_dir = tmp_path / 'brochure'
+    project_dir.mkdir()
+    (project_dir / 'index.html').write_text('<!DOCTYPE html>\n<title>Brochure</title>\n')
+    (project_dir / 'styles.css').write_text('body { margin: 0; }\n')
+    (project_dir / 'LICENSE').write_text('Apache License\nVersion 2.0\n')
+
+    detected = detect_answers(project_dir)
+
+    assert detected['project_type'] == 'static_site'
+    assert detected['license_id'] == 'Apache-2.0'
+    # No Python type, so the database question is not part of a static site.
+    assert 'database' not in detected
+
+
 def test_detect_answers_recognises_an_angular_project(tmp_path: Path) -> None:
     project_dir = tmp_path / 'webapp'
     project_dir.mkdir()

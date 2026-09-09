@@ -188,6 +188,10 @@ def _tooling_notes(project_dir: Path, project_type_id: str) -> list[str]:
     """The generated pre-commit hook runs the project's linter and test suite; warn when
     the adopted project does not declare the tools it needs (we never rewrite its
     pyproject.toml / package.json)."""
+    if project_type_id == 'static_site':
+        # A plain static site has no linter or test suite; the pre-commit hook only checks
+        # that an entry point exists, which needs nothing installed.
+        return []
     if project_type_id == 'angular':
         package_json = project_dir / 'package.json'
         if not package_json.exists():
